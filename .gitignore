@@ -33,3 +33,5 @@ config/device.local.json
 ops/ssh/config.local
 .DS_Store
 .vscode/
+
+*.tsbuildinfo

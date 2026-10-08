@@ -1,0 +1,17 @@
+import { spawn } from 'node:child_process';
+import { existsSync, mkdirSync } from 'node:fs';
+import { resolve } from 'node:path';
+const mode = process.env.CALENDAR_MODE ?? 'mock';
+if (mode !== 'mock') throw new Error('Google mode is not implemented yet. Use CALENDAR_MODE=mock.');
+const state = resolve(process.env.CALENDAR_STATE_DIR ?? '.local/dev');
+if (state === '/var/lib/pi-calendar' || state.startsWith('/var/lib/pi-calendar/')) throw new Error('Development must not use production state.');
+mkdirSync(state, { recursive: true, mode: 0o700 });
+const command = process.argv[2] ?? 'dev';
+if (!['dev', 'start'].includes(command)) throw new Error('Use dev or start.');
+const port = process.env.CALENDAR_PORT ?? '3100';
+const entry = resolve('dist/web/server.js');
+if (command === 'start' && !existsSync(entry)) throw new Error('Build the application first with npm run build.');
+const args = command === 'start' ? [entry] : ['node_modules/next/dist/bin/next', 'dev', '--hostname', '127.0.0.1', '--port', port];
+const child = spawn(process.execPath, args, { stdio: 'inherit', env: { ...process.env, HOSTNAME: '127.0.0.1', PORT: port, CALENDAR_MODE: mode, CALENDAR_STATE_DIR: state, NEXT_TELEMETRY_DISABLED: '1' } });
+for (const signal of ['SIGINT', 'SIGTERM']) process.on(signal, () => child.kill(signal));
+child.on('exit', (code) => process.exit(code ?? 1));

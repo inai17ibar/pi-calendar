@@ -1,0 +1,16 @@
+import {it,expect,afterEach,vi} from 'vitest';
+import {apiResponse} from '../../src/server/api';
+import {loadConfig} from '../../src/server/config';
+import {MockCalendarProvider,MemorySnapshotRepository} from '../../src/server/mock';
+const clock={now:()=>new Date('2026-10-03T14:20:00+09:00')};
+afterEach(()=>vi.unstubAllEnvs());
+it('mock month has data without credentials',()=>{const s=new MockCalendarProvider().month('2026-10',clock,'Asia/Tokyo');expect(s.complete).toBe(true);expect(s.events).toHaveLength(9);expect(s.synthetic).toBe(true);});
+it('successful empty month differs from missing snapshot',()=>{const s=new MockCalendarProvider().month('2027-01',clock,'Asia/Tokyo');expect(s.events).toHaveLength(0);expect(s.complete).toBe(true);const r=new MemorySnapshotRepository();expect(r.read('2027-01')).toBeUndefined();r.write('2027-01',s);expect(r.read('2027-01')?.complete).toBe(true);});
+it('repository owns its snapshot copy',()=>{const s=new MockCalendarProvider().month('2026-10',clock,'Asia/Tokyo');const r=new MemorySnapshotRepository();r.write('2026-10',s);s.events=[];expect(r.read('2026-10')?.events).toHaveLength(9);});
+it('rejects unsupported modes and invalid timezone safely',()=>{expect(()=>loadConfig({CALENDAR_MODE:'google'})).toThrow('not implemented');expect(()=>loadConfig({CALENDAR_TIMEZONE:'bad'})).toThrow('Invalid calendar');});
+it('rejects invalid fixed clock',()=>expect(()=>loadConfig({CALENDAR_MOCK_NOW:'bad'})).toThrow());
+it('mock API filters date and sends no-store',async()=>{vi.stubEnv('CALENDAR_MOCK_NOW',clock.now().toISOString());const res=apiResponse(new Request('http://localhost:3100/api/events?date=2026-10-03'),'events');expect(res.status).toBe(200);expect(res.headers.get('Cache-Control')).toBe('no-store');expect((await res.json()).events).toHaveLength(5);});
+it.each(['2026-13','2026-02-30','../../','2026-1'])('rejects invalid request %s',query=>{const key=query.length===10?'date':'month';expect(apiResponse(new Request(`http://localhost:3100/api/events?${key}=${encodeURIComponent(query)}`),'events').status).toBe(400);});
+it('rejects hostile host',()=>expect(apiResponse(new Request('http://example.com/api/events?month=2026-10'),'events').status).toBe(403));
+it.each(['health/live','health/ready','version'])('%s is local and no-store',path=>{const res=apiResponse(new Request(`http://127.0.0.1:3100/api/${path}`),path);expect(res.status).toBe(200);expect(res.headers.get('Cache-Control')).toBe('no-store');});
+it('bad config returns safe error without echoing values',async()=>{vi.stubEnv('CALENDAR_TIMEZONE','invalid-secret-like-value');const res=apiResponse(new Request('http://localhost:3100/api/health/ready'),'health/ready');expect(res.status).toBe(503);expect(await res.text()).not.toContain('invalid-secret-like-value');});

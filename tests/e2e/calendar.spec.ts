@@ -1,0 +1,54 @@
+import {test,expect} from '@playwright/test';
+test('month, day, navigation, details and empty day',async({page},info)=>{
+ const errors:string[]=[];page.on('pageerror',e=>errors.push(e.message));
+ await page.goto('/');
+ await expect(page.getByRole('heading',{name:'2026年 10月'})).toBeVisible();
+ await expect(page.locator('.day-cell')).toHaveCount(42);
+ await expect(page.locator('.event-card')).toHaveCount(5);
+ await expect(page.getByText('次の予定')).toBeVisible();
+ const size=await page.evaluate(()=>({width:innerWidth,scroll:document.documentElement.scrollWidth}));expect(size.scroll).toBeLessThanOrEqual(size.width);
+ await page.screenshot({path:`test-results/calendar-${info.project.name}.png`,fullPage:true});
+ await page.getByRole('button',{name:/夕方の散歩/}).click();
+ await expect(page.getByRole('dialog')).toBeVisible();
+ await expect(page.locator('.description')).toContainText('<script>');
+ await page.getByRole('button',{name:'詳細を閉じる'}).click();
+ await page.getByRole('button',{name:/^2026-10-04 /}).click();
+ await expect(page.getByRole('heading',{name:'10月4日 日曜日'})).toBeVisible();
+ await expect(page.getByText('前日 23:30 – 00:30')).toBeVisible();
+ await page.getByRole('button',{name:/^2026-10-15 /}).click();
+ await expect(page.getByText('予定はありません')).toBeVisible();
+ await page.getByRole('button',{name:'翌月',exact:true}).click();
+ await expect(page.getByRole('heading',{name:'2026年 11月'})).toBeVisible();
+ await page.getByRole('button',{name:'今日',exact:true}).click();
+ await expect(page.locator('.event-card')).toHaveCount(5);
+ await page.getByRole('button',{name:'日',exact:true}).click();
+ await expect(page.locator('.month-grid')).toHaveCount(0);
+ await page.getByRole('button',{name:'翌日',exact:true}).click();
+ await expect(page.getByRole('heading',{name:'10月4日 日曜日'})).toBeVisible();
+ expect(errors).toEqual([]);
+});
+test('preferences, missing state and failure retain cached samples',async({page})=>{
+ await page.goto('/');await expect(page.locator('.event-card')).toHaveCount(5);
+ await page.getByRole('button',{name:'設定',exact:true}).click();
+ await page.getByLabel('テーマ').selectOption('dark');
+ await page.getByLabel('文字サイズ').selectOption('large');
+ await page.getByLabel('週の始まり').selectOption('0');
+ await page.getByLabel('デモの取得状態').selectOption('not_configured');
+ await page.getByRole('button',{name:'設定を閉じる'}).click();
+ await expect(page.getByText('この日の予定は未取得です')).toBeVisible();
+ await expect(page.getByText('予定はありません')).toHaveCount(0);
+ await page.getByRole('button',{name:'設定',exact:true}).click();await page.getByLabel('デモの取得状態').selectOption('auth_required');await page.getByRole('button',{name:'設定を閉じる'}).click();
+ await expect(page.locator('.event-card')).toHaveCount(5);await expect(page.getByRole('status')).toContainText('再認証が必要');
+ await page.reload();await expect(page.locator('.calendar-app')).toHaveClass(/dark large/);await expect(page.locator('.event-card')).toHaveCount(5);
+ await page.route('**/api/events?*',route=>route.abort());await page.getByRole('button',{name:'再取得',exact:true}).click();
+ await expect(page.getByRole('status')).toContainText('オフライン');await expect(page.locator('.event-card')).toHaveCount(5);
+ await page.getByRole('button',{name:'翌月',exact:true}).click();await expect(page.locator('.event-card')).toHaveCount(0);await expect(page.getByText('予定はありません')).toHaveCount(0);
+});
+test('fixed injected clock preserves a manually selected day',async({page})=>{
+ await page.clock.install({time:new Date('2026-10-03T14:20:00+09:00')});
+ // This server uses a fixed injected clock; verify day navigation never changes its today marker.
+ await page.goto('/');await expect(page.locator('.event-card')).toHaveCount(5);
+ await page.getByRole('button',{name:/^2026-10-02 /}).click();await page.clock.fastForward(24*60*60*1000);
+ await expect(page.getByRole('heading',{name:'10月2日 金曜日'})).toBeVisible();
+ await page.getByRole('button',{name:'今日',exact:true}).click();await expect(page.getByRole('heading',{name:'10月3日 土曜日'})).toBeVisible();
+});
