@@ -1,0 +1,29 @@
+# TEMPLATE: replace @NODE_BIN@ and confirm directories/dist before installing.
+[Unit]
+Description=Pi Calendar synchronization worker
+After=local-fs.target
+StartLimitIntervalSec=60
+StartLimitBurst=10
+
+[Service]
+Type=simple
+User=calendar-app
+Group=calendar-app
+WorkingDirectory=/opt/pi-calendar/current
+EnvironmentFile=/etc/pi-calendar/runtime.env
+ExecStart=@NODE_BIN@ /opt/pi-calendar/current/dist/worker.mjs
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=20
+KillMode=control-group
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+ReadWritePaths=/var/lib/pi-calendar
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

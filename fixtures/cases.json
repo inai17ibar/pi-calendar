@@ -1,0 +1,69 @@
+{
+  "synthetic": true,
+  "clock": "2026-10-03T14:20:00+09:00",
+  "displayTimezone": "Asia/Tokyo",
+  "cases": [
+    {
+      "id": "all-day-exclusive",
+      "event": "demo-allday",
+      "visibleDates": [
+        "2026-10-03"
+      ],
+      "notVisibleDates": [
+        "2026-10-04"
+      ]
+    },
+    {
+      "id": "cross-midnight",
+      "event": "demo-midnight",
+      "visibleDates": [
+        "2026-10-03",
+        "2026-10-04"
+      ]
+    },
+    {
+      "id": "multi-day",
+      "event": "demo-multiday",
+      "visibleDates": [
+        "2026-10-05",
+        "2026-10-06",
+        "2026-10-07"
+      ],
+      "notVisibleDates": [
+        "2026-10-08"
+      ]
+    },
+    {
+      "id": "foreign-offset",
+      "event": "demo-foreign",
+      "startInDisplayTimezone": "2026-10-04T01:00:00+09:00"
+    },
+    {
+      "id": "moved-instance",
+      "event": "demo-recurring-20261003",
+      "visibleDates": [
+        "2026-10-04"
+      ],
+      "notVisibleDates": [
+        "2026-10-03"
+      ]
+    },
+    {
+      "id": "dst-fall-back",
+      "timezone": "America/New_York",
+      "day": "2026-11-01",
+      "expectedDayHours": 25
+    },
+    {
+      "id": "empty-replaces-cache",
+      "input": "google/empty-success.json",
+      "expectedEventCount": 0
+    },
+    {
+      "id": "partial-page-failure",
+      "firstPage": "google/month-page-1.json",
+      "secondPageHttpStatus": 503,
+      "mustKeepPreviousSnapshot": true
+    }
+  ]
+}

@@ -1,0 +1,7 @@
+M1の実装とテストを確認し、AGENTS.md、docs/04_GOOGLE_SYNC_AUTH.md、docs/07_SECURITY_OPERATIONS.mdを読んで、M2を実装してください。
+SQLite、独立Worker、Google adapter、PKCE/state付きDesktop OAuth CLIを作ってください。
+読み取り専用scopeのみにし、Googleへの書き込みAPIを追加しないでください。
+月スナップショット＋ページング完了後atomic swapとし、syncTokenは使用しないでください。
+MacからSSHトンネルでPiのloopback callbackへ戻る手順を実装に合わせて確定してください。
+Google client/tokenはユーザーがローカルに置く方式で、AIへ秘密値を渡さない運用にしてください。
+まずmock Google adapterの失敗注入テストを完了し、実アカウント認証はユーザーが操作する段階で止めて案内してください。

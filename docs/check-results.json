@@ -1,0 +1,112 @@
+{
+  "date": "2026-10-03",
+  "environment": "Linux x86_64 sandbox; Node22 present for diagnostics only; not target Node24/arm64",
+  "scope": "Starter documents/templates only, no Google/Tailscale/Pi connection or application tests",
+  "results": [
+    {
+      "test": "JSON parse",
+      "passed": true,
+      "detail": "8 files"
+    },
+    {
+      "test": "Internal Markdown links",
+      "passed": true,
+      "detail": "18 links; missing=[]"
+    },
+    {
+      "test": "Bash syntax: scripts/doctor.sh",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "test": "Bash syntax: scripts/ssh-tunnel.sh",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "test": "Bash syntax: ops/kiosk/kiosk-supervisor.sh",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "test": "doctor read-only sandbox run",
+      "passed": true,
+      "detail": "Linux/x86_64; not Raspberry Pi"
+    },
+    {
+      "test": "SSH tunnel argument construction (stub)",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "test": "SSH rejects ['-oBad']",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "test": "SSH rejects ['pi-calendar;touch BAD']",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "test": "SSH rejects ['pi-calendar', '0']",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "test": "SSH rejects ['pi-calendar', '65536']",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "test": "SSH rejects ['pi-calendar', '0080']",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "test": "Kiosk launcher + maintenance (stub)",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "test": "Kiosk rejects no-GUI session (stub)",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "test": "Kiosk rejects root (stub)",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "test": "systemd syntax: pi-calendar-sync.service",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "test": "systemd syntax: pi-calendar-web.service",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "test": "Fixture timezone conversion",
+      "passed": true,
+      "detail": "2026-10-04T01:00:00+09:00"
+    },
+    {
+      "test": "Fixture DST day duration",
+      "passed": true,
+      "detail": "25.0 hours"
+    },
+    {
+      "test": "Known credential-pattern scan",
+      "passed": true,
+      "detail": "No matching real key/token forms; not a security guarantee"
+    },
+    {
+      "test": "No app/lockfile falsely included",
+      "passed": true,
+      "detail": ""
+    }
+  ]
+}

@@ -1,0 +1,35 @@
+# Dependencies / builds
+node_modules/
+.next/
+dist/
+out/
+coverage/
+playwright-report/
+test-results/
+# Real local state and credentials
+.env
+.env.*
+!.env.example
+.local/
+data/
+secrets/
+backups/
+*.sqlite
+*.sqlite-*
+*.db
+*.db-*
+tokens.json
+token.json
+credentials.json
+oauth-client.json
+client_secret*.json
+*.pem
+*.key
+id_rsa*
+id_ed25519*
+*.log
+# Local identity / machine settings
+config/device.local.json
+ops/ssh/config.local
+.DS_Store
+.vscode/

@@ -1,0 +1,31 @@
+{
+  "schemaVersion": 1,
+  "display": {
+    "timezone": "Asia/Tokyo",
+    "locale": "ja-JP",
+    "startupView": "month",
+    "weekStartsOn": 1,
+    "textScale": 1.0,
+    "theme": "light",
+    "returnToTodayAfterSeconds": 0
+  },
+  "sync": {
+    "selectedCalendarIds": [
+      "primary"
+    ],
+    "intervalSeconds": 60,
+    "backgroundIntervalSeconds": 300,
+    "backgroundMonthsBefore": 1,
+    "backgroundMonthsAfter": 2,
+    "navigationMonthLimit": 12,
+    "staleAfterSeconds": 300,
+    "concurrency": 2
+  },
+  "runtime": {
+    "host": "127.0.0.1",
+    "port": 3000,
+    "devPort": 3100,
+    "versionPollSeconds": 15
+  },
+  "_note": "Initial defaults only; implement validated loading and persistence in M0/M2. No secrets in this file."
+}

@@ -1,0 +1,45 @@
+{
+  "kind": "calendar#events",
+  "timeZone": "Asia/Tokyo",
+  "items": [
+    {
+      "id": "demo-recurring-20261003",
+      "status": "confirmed",
+      "summary": "移動した繰り返し（架空）",
+      "start": {
+        "dateTime": "2026-10-04T14:00:00+09:00"
+      },
+      "end": {
+        "dateTime": "2026-10-04T15:00:00+09:00"
+      },
+      "recurringEventId": "demo-series",
+      "originalStartTime": {
+        "dateTime": "2026-10-03T09:00:00+09:00"
+      }
+    },
+    {
+      "id": "demo-foreign",
+      "status": "confirmed",
+      "summary": "海外時刻サンプル（架空）",
+      "start": {
+        "dateTime": "2026-10-03T09:00:00-07:00",
+        "timeZone": "America/Los_Angeles"
+      },
+      "end": {
+        "dateTime": "2026-10-03T10:00:00-07:00",
+        "timeZone": "America/Los_Angeles"
+      }
+    },
+    {
+      "id": "demo-empty",
+      "status": "confirmed",
+      "summary": "",
+      "start": {
+        "dateTime": "2026-10-06T10:00:00+09:00"
+      },
+      "end": {
+        "dateTime": "2026-10-06T10:30:00+09:00"
+      }
+    }
+  ]
+}

@@ -1,0 +1,51 @@
+{
+  "kind": "calendar#events",
+  "timeZone": "Asia/Tokyo",
+  "nextPageToken": "fixture-page-2",
+  "items": [
+    {
+      "id": "demo-allday",
+      "status": "confirmed",
+      "summary": "終日サンプル（架空）",
+      "start": {
+        "date": "2026-10-03"
+      },
+      "end": {
+        "date": "2026-10-04"
+      }
+    },
+    {
+      "id": "demo-timed",
+      "status": "confirmed",
+      "summary": "打ち合わせサンプル（架空）",
+      "start": {
+        "dateTime": "2026-10-03T15:00:00+09:00"
+      },
+      "end": {
+        "dateTime": "2026-10-03T16:00:00+09:00"
+      }
+    },
+    {
+      "id": "demo-midnight",
+      "status": "confirmed",
+      "summary": "日付跨ぎサンプル（架空）",
+      "start": {
+        "dateTime": "2026-10-03T23:30:00+09:00"
+      },
+      "end": {
+        "dateTime": "2026-10-04T00:30:00+09:00"
+      }
+    },
+    {
+      "id": "demo-multiday",
+      "status": "confirmed",
+      "summary": "複数日サンプル（架空）",
+      "start": {
+        "date": "2026-10-05"
+      },
+      "end": {
+        "date": "2026-10-08"
+      }
+    }
+  ]
+}

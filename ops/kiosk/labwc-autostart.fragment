@@ -1,0 +1,3 @@
+# Append ONLY after backup to the GUI user's ~/.config/labwc/autostart.
+# Install the reviewed supervisor at the path below; do not run it as root.
+"$HOME/.local/bin/pi-calendar-kiosk" &

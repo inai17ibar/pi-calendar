@@ -1,0 +1,11 @@
+# Append a reviewed version to ~/.ssh/config. Never replace your full config.
+# Use EITHER LAN DNS/IP OR your Pi's Tailscale MagicDNS name for HostName.
+Host pi-calendar
+  HostName REPLACE_WITH_PI_HOST
+  User REPLACE_WITH_PI_USER
+  IdentityFile ~/.ssh/id_ed25519
+  IdentitiesOnly yes
+  ForwardAgent no
+  ServerAliveInterval 30
+  ServerAliveCountMax 3
+  ExitOnForwardFailure yes

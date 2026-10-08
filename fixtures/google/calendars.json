@@ -1,0 +1,20 @@
+{
+  "kind": "calendar#calendarList",
+  "items": [
+    {
+      "id": "demo-primary@example.invalid",
+      "summary": "デモ・日常",
+      "timeZone": "Asia/Tokyo",
+      "backgroundColor": "#547ca7",
+      "primary": true,
+      "accessRole": "owner"
+    },
+    {
+      "id": "demo-shared@example.invalid",
+      "summary": "デモ・共有",
+      "timeZone": "Asia/Tokyo",
+      "backgroundColor": "#729982",
+      "accessRole": "reader"
+    }
+  ]
+}

@@ -1,0 +1,17 @@
+{
+  "formatVersion": 1,
+  "releaseId": "EXAMPLE-REPLACE-WITH-TIMESTAMP-AND-SHA",
+  "commit": "REPLACE_WITH_FULL_GIT_SHA",
+  "builtAt": "REPLACE_WITH_UTC_RFC3339",
+  "platform": "linux",
+  "arch": "arm64",
+  "nodeMajor": 24,
+  "schema": {
+    "minReadable": 1,
+    "maxReadable": 1,
+    "target": 1,
+    "backwardCompatible": true
+  },
+  "filesSha256": {},
+  "_note": "Contract example; not a validated installable release. M4 must generate actual values and file hashes."
+}
