@@ -23,6 +23,7 @@ test('month, day, navigation, details and empty day',async({page},info)=>{
  await expect(page.locator('.event-card')).toHaveCount(5);
  await page.getByRole('button',{name:'日',exact:true}).click();
  await expect(page.locator('.month-grid')).toHaveCount(0);
+ await page.screenshot({path:`test-results/day-${info.project.name}.png`,fullPage:true});
  await page.getByRole('button',{name:'翌日',exact:true}).click();
  await expect(page.getByRole('heading',{name:'10月4日 日曜日'})).toBeVisible();
  expect(errors).toEqual([]);
@@ -51,4 +52,58 @@ test('fixed injected clock preserves a manually selected day',async({page})=>{
  await page.getByRole('button',{name:/^2026-10-02 /}).click();await page.clock.fastForward(24*60*60*1000);
  await expect(page.getByRole('heading',{name:'10月2日 金曜日'})).toBeVisible();
  await page.getByRole('button',{name:'今日',exact:true}).click();await expect(page.getByRole('heading',{name:'10月3日 土曜日'})).toBeVisible();
+});
+
+test('week timeline crosses months, separates all-day and midnight, and supports touch',async({page},info)=>{
+ const errors:string[]=[];page.on('pageerror',e=>errors.push(e.message));
+ await page.goto('/');await expect(page.locator('.event-card')).toHaveCount(5);
+ const requests:string[]=[];page.on('request',r=>{if(r.url().includes('/api/events?'))requests.push(r.url());});
+ await page.getByRole('button',{name:'週',exact:true}).click();
+ await expect(page.getByRole('heading',{name:'2026年 9月28日 – 10月4日'})).toBeVisible();
+ await expect(page.locator('.all-day-event')).toHaveCount(1);
+ await expect(page.locator('.week-event').filter({hasText:'日付跨ぎ'})).toHaveCount(2);
+ expect(requests.some(r=>r.includes('month=2026-09'))).toBe(true);
+ expect(requests.some(r=>r.includes('month=2026-10'))).toBe(true);
+ await expect(page.locator('.week-header')).toBeVisible();
+ await page.screenshot({path:`test-results/week-${info.project.name}.png`,fullPage:true});
+ await page.locator('.week-scroll').evaluate(el=>el.scrollTop=0);
+ await page.screenshot({path:`test-results/week-midnight-${info.project.name}.png`,fullPage:true});
+ await page.getByRole('button',{name:'翌週',exact:true}).click();
+ await expect(page.getByRole('heading',{name:'2026年 10月5日 – 10月11日'})).toBeVisible();
+ await expect(page.locator('.all-day-event').filter({hasText:'複数日'})).toHaveCount(3);
+ await page.screenshot({path:`test-results/week-multiday-${info.project.name}.png`,fullPage:true});
+ await page.locator('.all-day-event').first().click();await expect(page.getByRole('dialog')).toBeVisible();
+ await page.getByRole('button',{name:'詳細を閉じる'}).click();
+ await page.getByRole('button',{name:'設定',exact:true}).click();
+ await page.getByLabel('起動時の表示').selectOption('week');await page.getByLabel('週の始まり').selectOption('0');
+ await page.getByLabel('文字サイズ').selectOption('large');await page.getByRole('button',{name:'設定を閉じる'}).click();
+ await expect(page.getByRole('heading',{name:'2026年 10月4日 – 10月10日'})).toBeVisible();
+ await page.reload();await expect(page.getByRole('button',{name:'週',exact:true})).toHaveAttribute('aria-pressed','true');
+ const client=await page.context().newCDPSession(page);await client.send('Emulation.setTouchEmulationEnabled',{enabled:true});
+ await page.getByRole('button',{name:'翌週',exact:true}).tap();
+ await expect(page.getByRole('heading',{name:'2026年 10月4日 – 10月10日'})).toBeVisible();
+ await page.locator('.all-day-event').first().tap();await expect(page.getByRole('dialog')).toBeVisible();
+ await page.getByRole('button',{name:'詳細を閉じる'}).tap();
+ const scroll=page.locator('.week-scroll');await scroll.evaluate(el=>el.scrollTop=0);
+ const box=await scroll.boundingBox();if(!box)throw new Error('Missing scroll area');
+ await client.send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[{x:box.x+100,y:box.y+box.height-50}]});
+ await client.send('Input.dispatchTouchEvent',{type:'touchMove',touchPoints:[{x:box.x+100,y:box.y+100}]});
+ await client.send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});
+ await expect.poll(()=>scroll.evaluate(el=>el.scrollTop)).toBeGreaterThan(0);
+ expect(errors).toEqual([]);
+ const size=await page.evaluate(()=>({width:innerWidth,scroll:document.documentElement.scrollWidth}));expect(size.scroll).toBeLessThanOrEqual(size.width);
+});
+
+test('cross-month copies are deduplicated and failed new weeks stay unacquired',async({page})=>{
+ const event={id:'boundary',calendarId:'test',calendarName:'合成',title:'跨月の合成予定',color:'#1a73e8',kind:'allDay',start:'2026-09-30',end:'2026-10-02'};
+ await page.route('**/api/events?*',route=>route.fulfill({json:{events:[event],complete:true,fetchedAt:'2026-10-03T05:20:00Z',state:'fresh',synthetic:true}}));
+ await page.goto('/');await page.getByRole('button',{name:'週',exact:true}).click();
+ await expect(page.locator('.all-day-event')).toHaveCount(2);
+ await expect(page.locator('.all-day-event').first()).toContainText('→');
+ await expect(page.locator('.all-day-event').last()).toContainText('←');
+ await page.unroute('**/api/events?*');await page.route('**/api/events?*',route=>route.abort());
+ await page.getByRole('button',{name:'再取得',exact:true}).click();
+ await expect(page.getByRole('status')).toContainText('オフライン');await expect(page.locator('.all-day-event')).toHaveCount(2);
+ await page.getByRole('button',{name:'翌週',exact:true}).click();
+ await expect(page.locator('.all-day-event')).toHaveCount(0);await expect(page.locator('.week-header .unfetched')).toHaveCount(7);
 });

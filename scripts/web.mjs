@@ -2,7 +2,7 @@ import { spawn } from 'node:child_process';
 import { existsSync, mkdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 const mode = process.env.CALENDAR_MODE ?? 'mock';
-if (mode !== 'mock') throw new Error('Google mode is not implemented yet. Use CALENDAR_MODE=mock.');
+if (!['mock', 'google'].includes(mode)) throw new Error('Use CALENDAR_MODE=mock or google.');
 const state = resolve(process.env.CALENDAR_STATE_DIR ?? '.local/dev');
 if (state === '/var/lib/pi-calendar' || state.startsWith('/var/lib/pi-calendar/')) throw new Error('Development must not use production state.');
 mkdirSync(state, { recursive: true, mode: 0o700 });
