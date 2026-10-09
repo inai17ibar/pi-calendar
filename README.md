@@ -1,86 +1,62 @@
-# Pi Calendar — Raspberry Pi 5 卓上カレンダー
+# Pi Calendar
 
-**ステータス：実装前のリポジトリ雛形。アプリ本体・Google認証・デプロイ機能はまだ実装していません。**
-この一式はClaude Code／Codexが実装を始めるための仕様・運用契約・設定テンプレートです。
-作成日：2026-10-03。名称 `pi-calendar` は仮称で、Google/Nestの公式製品ではありません。
+Raspberry Pi向け卓上カレンダーの開発プロジェクト。添付スターターを取り込み、**M0基盤とM1の合成データUI**を実装しました。Google同期・永続キャッシュ・Pi自動起動・リリース更新は未実装です。
 
-## 目標
+## 起動
 
-Raspberry Pi 5を起動すると、12.3インチのタッチ画面に今日の予定と月間カレンダーが全画面表示される。
-Google Calendarの変更を自動取得し、ネットワークが切れても最後に取得した予定は残す。
-Macで開発した版、またはSSH/Tailscale経由でPi内で開発した版を、明示的な更新操作で本番へ反映する。
+Node.js 24系とnpm 11.9.0で検証済み。依存は固定版、package-lock.jsonを同梱しています。
 
-## 確認済みの利用環境と、設計上の仮定
-
-| 区分 | 内容 |
-|---|---|
-| ユーザー確認済み | 手持ちのRaspberry Pi 5を使用。モニターはクレードルに適合。USB接続を追加してタッチ動作を確認 |
-| これまでの選定 | HAILESI S123E相当、12.3インチ、1920×1280、3:2、HDMI映像＋USBタッチ |
-| 設計前提 | Raspberry Pi OS **64-bit・デスクトップ付き**。Wayland/labwcを第一候補とするが現物のOS/セッションは未確認 |
-| 開発 | Macローカル、またはMacからPiへSSH/VS Code Remote-SSH。AIエージェントは任意 |
-| 未確認 | PiのRAM/空き容量、OS版、ユーザー名、ホスト名、表示スケール、Node/Chromium/Tailscale導入状況 |
-
-実機へのセットアップ前に `bash scripts/doctor.sh` をPi上で実行する。既存OSの再インストールを前提にしない。
-SSH内の `XDG_SESSION_TYPE=tty` だけを見て、実際の画面がX11/Waylandではないと断定しない。
-
-## 読む順番
-
-1. [開始ガイド](START_HERE.md) → [エージェント共通指示](AGENTS.md)
-2. [要件](docs/01_REQUIREMENTS.md) → [画面仕様](docs/02_UI_SPEC.md)
-3. [アーキテクチャ](docs/03_ARCHITECTURE.md) → [Google同期/認証](docs/04_GOOGLE_SYNC_AUTH.md)
-4. [Pi起動](docs/05_PI_KIOSK.md) → [開発・更新](docs/06_REMOTE_DEVELOPMENT_DEPLOY.md)
-5. [タスク](docs/08_IMPLEMENTATION_PLAN.md) と [受入テスト](docs/09_ACCEPTANCE_TESTS.md)
-
-最初にエージェントへ渡す文章は [prompts/01_BOOTSTRAP.md](prompts/01_BOOTSTRAP.md)。
-設計変更は [判断記録](docs/10_DECISIONS.md) に理由と影響を記録する。
-
-## 採用する初期構成
-
-```text
-Mac: 開発 / AIエージェント / ブラウザ / SSH
-          │  家庭内LAN または Tailscale
-          ▼
-Raspberry Pi 5
-  Chromium kiosk ── HTTP(loopback) ── Next.js UI/API (systemd)
-                                             │
-                                         SQLiteキャッシュ
-                                             │
-                                  同期Worker (systemd)
-                                             │ HTTPS
-                                         Google Calendar
+```bash
+cd /workspace/pi-calendar
+export npm_config_cache=/workspace/.cache/npm
+npm ci
+npm run dev
 ```
 
-Next.js + TypeScript、Node.js 24 LTS系、SQLite、独立した同期Worker。
-依存の正確なpatch版とnpm版は実装時に確認・固定し、`package-lock.json` をコミットする。
-Webサーバーは `127.0.0.1:3000`、開発は `127.0.0.1:3100` を基本とする。
-Calendar/Node/Next/Piの参照資料は [SOURCES.md](docs/SOURCES.md)。
+開発サーバーは127.0.0.1:3100のみで待受けます。開発用stateは`.local/dev`で、本番stateは使いません。Google認証情報は不要です。通常は現在日付に合わせた合成予定を表示し、時刻・表示日はAsia/Tokyoを使います。
 
-## この雛形に含む／含まないもの
+- 月の6週グリッド、前月・翌月・今日、日別表示、予定詳細。
+- 終日・複数日・跨日・海外offset・長い件名・件名なし。
+- 空の日と未取得を区別。通信失敗時、同じ月の表示済みサンプルを保持。
+- 設定から明暗、文字サイズ、週始まり、起動時表示、デモ取得状態を変更。
+- 表示設定のみブラウザに保存。Google予定やDBを保存する機能は未実装。
+- 毎15秒の時計更新。今日追従中は0時に日付・月を更新し、手動選択日は保持。
 
-| 種類 | 状態 |
+設定は環境変数で渡せます。`.env.example`は参考であり、コピーせず起動可能です。
+
+| 変数 | 既定値 / 用途 |
 |---|---|
-| 要件・画面・同期・更新・テスト仕様 | 作成済み。仕様であって実装済み機能ではない |
-| AGENTS.md / CLAUDE.md / 段階別プロンプト | そのまま開発開始に利用可能 |
-| doctor.sh / ssh-tunnel.sh | 小さな補助スクリプト。OSをインストール・変更しない |
-| kiosk-supervisor.sh | 参考実装。実アプリとPi GUIセッションでの検証は未実施 |
-| systemd / labwc / SSH設定 | テンプレート。自動インストールしない |
-| ダミー予定・テストケース | 個人情報を含まない合成データ |
-| カレンダーUI、同期Worker、OAuth CLI、deploy/rollback | **未実装。タスクとして定義** |
-| package.json / lockfile | **未作成**。M0で実際の依存を解決して作る |
+| CALENDAR_MODE | mockのみ。Googleモードは明確にエラー |
+| CALENDAR_TIMEZONE | Asia/Tokyo。有効なIANA timezone |
+| CALENDAR_PORT | 3100。ループバック待受け固定 |
+| CALENDAR_STATE_DIR | .local/dev。開発state用、本番stateは拒否 |
+| CALENDAR_MOCK_NOW | 未設定なら現在時刻。固定デモならoffset付きISO日時 |
 
-この時点で `npm run dev` や `npm run deploy` は動かない。
-後述のコマンド契約をエージェントが実装してから使用する。
-ユーザーのGoogle/Tailscale/GitHubに接続したり、リポジトリを作成したりする処理は実行していない。
+スターターの同期関連環境変数・systemd設定は将来の実装契約です。現在のWebにWorkerはありません。
 
-## 完成時の重要な契約
+## 検証
 
-Googleへのアクセスは読み取り専用。MVPで予定の作成/編集/削除、音声、天気、Tasksは扱わない。
-同期とソフトウェア更新を混同しない。Google同期は自動、アプリ更新はユーザーが明示的に実行する。
-更新は別ディレクトリへ準備→動作確認→切替→失敗時復旧。本番ディレクトリで直接 `git pull` しない。
-ネット断・認証失効は「同期が古い」状態であり、キャッシュ表示可能ならアプリ起動失敗とはしない。
+```bash
+npm run check                  # lint、strict型チェック、unit/integration
+npm run build                  # Nextビルド、dist/webへstandalone出力
+export PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/usr/bin/chromium
+npm run test:e2e               # 4画面サイズ、合成fixture固定Clock
+npm run test:runtime           # build後。standalone APIと実時計の月末跨ぎ
+```
 
-## 公開と秘密情報
+クラウドでは既存のChromiumを使用しました。他の開発環境はPlaywright公式のブラウザ導入手順に従い、環境変数を未設定にしてバンドルブラウザを使えます。テスト用ポート3310/3311は起動・終了をPlaywrightが管理します。認証情報は不要です。
 
-まずprivate repositoryを推奨。ライセンスは未決定のためLICENSEを勝手に付与しない。
-`.env`、Google client JSON、token、DB、バックアップ、実際の予定、SSH鍵をGit/LLMへ渡さない。
-[セキュリティと運用](docs/07_SECURITY_OPERATIONS.md) を参照。
+`npm run build`はWebのみを出力します。Worker/CLI/OAuth/deploy/rollbackは未実装で、成功するダミーコマンドは設けていません。Pi/Linux arm64での再ビルド、実機タッチ、OS起動、24時間動作は未検証です。
+
+## 記録と仕様
+
+[実装・検証記録](docs/STATUS.md)、[実画面](docs/screenshots/calendar-1280x853.png)。
+元の仕様は[要件](docs/01_REQUIREMENTS.md)、[画面](docs/02_UI_SPEC.md)、[アーキテクチャ](docs/03_ARCHITECTURE.md)、[実装計画](docs/08_IMPLEMENTATION_PLAN.md)。[元のREADME](docs/STARTER_README.md)は実装前の設計資料として保存しました。
+
+APIはread-onlyかつno-storeで、Hostをlocalhost/127.0.0.1に制限します。health/readyはmock機能の準備だけを示し、GoogleやSQLiteの準備完了を意味しません。versionのcommit/builtAtは未生成のためnullで、m1-mockはデモ識別子です。
+
+実際の予定・token・client JSON・SSH鍵をリポジトリやログへ入れないでください。Next工程はM2のGoogle read-onlyアダプターとSQLite/Workerです。クラウドのセットアップ設定を保存しても、GitHubへのcommit/pushや環境の公開は行われません。
+
+## PiでPRブランチを試す
+
+[Pi実機の試験手順](docs/PI_TRIAL.md)を参照してください。`feat/mock-calendar-ui`を専用の開発ディレクトリへcloneし、Pi自身で`npm ci` → `npm run check` → `npm run build` → `npm start`を実行します。実機のOS設定や本番サービスは変更しません。
