@@ -1,14 +1,28 @@
 import { DateTime } from 'luxon';
 export interface Clock { now(): Date }
 export const systemClock: Clock = { now: () => new Date() };
-export type CalendarEvent = { id: string; calendarId: string; title: string; description?: string; color: string; calendarName: string } & (
+export type CalendarEvent = { id: string; calendarId: string; title: string; description?: string; color: string; calendarName: string; recurringEventId?: string } & (
   { kind: 'allDay'; start: string; end: string } | { kind: 'timed'; start: string; end: string }
 );
 export type SyncState = 'fresh' | 'syncing' | 'stale' | 'offline' | 'auth_required' | 'partial_error' | 'not_configured';
-export interface Snapshot { events: CalendarEvent[]; complete: boolean; fetchedAt: string | null; state: SyncState; synthetic: true }
+export interface CalendarSummary { id: string; name: string; color: string; fetched: boolean }
+/** complete: every selected calendar has a stored month. available: at least one has (show cached data, flag partial). */
+export interface Snapshot { events: CalendarEvent[]; complete: boolean; available?: boolean; fetchedAt: string | null; state: SyncState; synthetic: boolean; calendars?: CalendarSummary[] }
 export interface CalendarProvider { month(month: string, clock: Clock, timezone: string): Snapshot }
 export interface SnapshotRepository { read(month: string): Snapshot | undefined; write(month: string, snapshot: Snapshot): void }
 export const dateInZone = (clock: Clock, zone: string) => DateTime.fromJSDate(clock.now(), { zone }).toISODate()!;
+/** How far from the current month the screen may navigate and the worker may fetch. */
+export const NAVIGATION_LIMIT_MONTHS = 12;
+export function withinNavigationLimit(month: string, clock: Clock, timezone: string) {
+ const now = DateTime.fromJSDate(clock.now(), { zone: timezone }).startOf('month');
+ const target = DateTime.fromISO(`${month}-01`, { zone: timezone });
+ return target.isValid && Math.abs(Math.round(target.diff(now, 'months').months)) <= NAVIGATION_LIMIT_MONTHS;
+}
+/** Month range in the display timezone, as offset RFC3339 strings for Google timeMin/timeMax. */
+export function monthBounds(month: string, zone: string) {
+ const start = DateTime.fromISO(`${month}-01`, { zone }).startOf('day');
+ return { start, end: start.plus({ months: 1 }) };
+}
 export function dayBounds(day: string, zone: string) {
  const start = DateTime.fromISO(day, { zone }).startOf('day');
  return { start, end: start.plus({ days: 1 }) };

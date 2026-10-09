@@ -1,14 +1,14 @@
 # 実装状況
 
-最終更新：2026-10-08（クラウドLinux x86_64、Node 24.19.0、npm 11.9.0）
+最終更新：2026-10-09（Raspberry Pi・Debian 12 bookworm・aarch64、Node 24.21.0、npm 11.19.0）
 
 | 段階 | 状態 | 証跡 |
 |---|---|---|
 | スターター仕様/テンプレート | 取り込み済み | 元のREADMEはSTARTER_README.md、既存docs/ops/fixturesを保持 |
 | M0 基盤 | 実装・検証済み | pin/lock、strict TS、config検証、Clock/Provider/Repository境界 |
 | M1 合成UI | クラウド検証済み | 月/日/詳細/設定/状態/時計、4viewport |
-| M2 Google同期/SQLite/Worker | 未着手 | Google通信/認証なし、mockメモリのみ |
-| M3 Pi起動 | 未着手 | 実機OS・arm64・タッチ・自動起動未検証 |
+| M2 Google同期/SQLite/Worker | 実装・fake Googleで検証済み | T201–T205。実アカウント接続（T206）はユーザー操作待ち |
+| M3 Pi起動 | 一部 | Pi arm64でのbuild/test/起動は確認。systemd・kiosk・自動起動は未着手 |
 | M4 update/rollback | 未着手 | 未実装 |
 | M5 実機長時間 | 未着手 | 未実施 |
 
@@ -41,3 +41,37 @@ Gitリポジトリは元々空であったため、スターターをmainの初�
 ## Pi試験用の追加確認（2026-10-08）
 
 現在の開発Webを再取得し、ready HTTP 200、日別events 5件、HTML HTTP 200、Chromiumページエラー0件を確認。[現在の実画面](screenshots/current-cloud-1280x853.png)を追加。`npm start`をstandalone出力の起動に統一し、runtimeテストも同じコマンドを使う。Piのclone/pull/build手順は[PI_TRIAL](PI_TRIAL.md)に記録。Piでの実行結果はまだ未確認。
+
+## Pi実機 + M2（2026-10-09、ブランチ feat/google-sync）
+
+環境：Raspberry Pi（aarch64）、Debian 12 bookworm、labwc/Wayland、RAM 8GB、NVMe。Nodeが未導入だったため、公式 `node-v24.21.0-linux-arm64.tar.xz` をSHA256検証のうえ `~/.local/node` へ展開し、`~/.bashrc` にPATHを1行追加（sudo・aptは不使用）。
+
+M1（変更前のcommit caf9ed0）のPi結果：`npm ci` 成功、`npm run check` 36件合格、`npm run build` 成功、`test:e2e` 12件合格、`test:runtime` 1件合格（`/usr/bin/chromium` 154）。`npm start` で ready/events のHTTP 200を確認。
+
+M2の実装：
+- `src/server/storage/db.ts`：`node:sqlite`、WAL、schema_version=1、月スナップショットのtransaction置換、generation検査、失敗時は状態のみ更新、DBファイル0600。
+- `src/server/google/client.ts`：CalendarList/Eventsの読み取りのみ。singleEvents、showDeleted=false、全ページ取得後にのみ返す、10万件上限、HTTPエラーの内部分類（生メッセージは保存しない）、正規化（cancelled除外、終日date、offset保持、件名なし/予定あり）。
+- `src/server/auth/`：Desktop OAuth、PKCE S256＋state、127.0.0.1限定のワンショットloopback（10分）、余分なscopeの拒否、tokenの0600 atomic write、refresh_token欠落時は保持、invalid_grant→auth_required。
+- `src/worker/`：単一インスタンスlock、今月→前後月の優先順、60秒/5分、jitter付きbackoff（30秒〜15分）、手動同期の10秒集約、表示月の要求（±12か月、24時間）、範囲外の月の削除、token更新の自動再読込。
+- `src/cli/main.ts`：`auth google`、`calendars list|select`、`status`。
+- API：googleモードで `/api/events` がSQLiteを返す（complete/available/state/calendars）。`/api/status`、POST `/api/cache/request-month`・`/api/sync/request`（Origin＋JSON必須）。
+- UI：googleモードではDEMO表示を外し、実状態・カレンダー凡例・最終取得時刻・30秒ごとの再読込を表示。
+
+Pi上の実行結果：
+- `npm run check`：lint/型 成功、unit/integration **66件合格**（M2の30件を追加）。
+- `npm run build`：成功（dist/web、dist/worker.mjs、dist/cli.mjs）。
+- `test:e2e` **12件合格**、`test:runtime` **1件合格**（mockモードの回帰）。
+- 認証情報なしのgoogleモード：health/ready・status・events がno-store、`not_configured`表示、Originなし POST は403。ダミーclientでのCLI：誤stateは400、拒否時はtokenを作らず終了。
+- 合成fixtureをSQLiteへ入れたgoogleモード画面をPlaywrightで確認（予定3件、pageerror 0、未取得カレンダーを凡例で表示）。
+
+未検証：実Googleアカウントでの認証と同期（ユーザー操作。手順は[GOOGLE_SETUP](GOOGLE_SETUP.md)）、Testing公開状態での7日失効、長時間稼働、systemd常駐、kiosk、オフライン再起動。Worker稼働中にCLIで再認証した場合、Workerはtokenを読み直すが、同時にGoogleがrefresh tokenをrotateした場合の競合は本番（M3）でWorker停止手順にする。
+
+### 実アカウント確認とレビュー修正（2026-10-09）
+
+ユーザーが自分のGoogleアカウントで認証し、画面「接続済み」、`cli status` の auth=ok を確認（T206。AIは予定内容を取得していない）。
+
+コードレビュー指摘10件を修正：lockに boot_id を記録（停電後のPID再利用・自PIDで詰まらない、旧形式lockはPIDで判定）、カレンダー一覧取得の失敗にbackoff、heartbeatを15秒の独立タイマー化、手動「再取得」はbackoff中でも実行、画面の月移動を±12か月に制限（API/Workerと共通定数）、表示中の月の要求を1時間ごとに更新、壊れたtokens.jsonは「再認証が必要」、状態表示/凡例は表示中の月の応答だけを使用、access token更新を1本に集約、`/api/version` のschemaVersionを定数参照。期限切れの月要求の削除はprune時のみに整理。
+
+Pi上の結果：`npm run check` **74件合格**、`npm run build` 成功、`test:e2e` 12件・`test:runtime` 1件合格。googleモードの一時stateで、翌月ボタンが12回で無効化（2027年10月）されpageerror 0件を確認。
+
+次の最小タスク：M3（systemd unit・kiosk自動起動）。
