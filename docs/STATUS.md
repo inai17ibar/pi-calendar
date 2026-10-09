@@ -9,7 +9,7 @@
 | M0 基盤 | 実装・検証済み | pin/lock、strict TS、config検証、Clock/Provider/Repository境界 |
 | M1 合成UI | クラウド検証済み | 月/日/詳細/設定/状態/時計、4viewport |
 | M2 Google同期/SQLite/Worker | 実装・fake Googleで検証済み | T201–T205。実アカウント接続（T206）はユーザー操作待ち |
-| M3 Pi起動 | 一部 | Pi arm64でのbuild/test/起動は確認。systemd・kiosk・自動起動は未着手 |
+| M3 Pi起動 | 実装済み・実機適用待ち | installer/kiosk/unit。sudo適用と再起動試験はユーザー承認後 |
 | M1 合成UI | クラウド検証済み | 月/週/日/詳細/設定/状態/時計、4viewport |
 | M2 Google同期/SQLite/Worker | 未着手 | Google通信/認証なし、mockメモリのみ |
 | M3 Pi起動 | 未着手 | 実機OS・arm64・タッチ・自動起動未検証 |
@@ -98,3 +98,13 @@ GitHubの `feat/mock-calendar-ui`、`caf9ed0` を取得して実装。前環境�
 ### 週表示の統合（2026-10-09）
 
 `feat/mock-calendar-ui` の週表示（c4c32a2）を本ブランチへmerge。週が2か月に跨る場合の応答統合を `mergeSnapshots`（最悪状態・最古取得・全月取得済みのみ表示）としてdomainへ移し、googleモードの表示月要求も週の全月に対して行う。Pi上で `npm run check` 79件、`test:e2e` 20件、`test:runtime` 1件合格。googleモード（合成データの一時DB）で週表示の時刻予定5件・終日2件、pageerror 0件を確認。
+
+## M3 常駐・全画面（2026-10-09、ブランチ feat/m3-kiosk）
+
+実機確認（読取のみ）：labwc `-m`（設定マージ）、lightdm自動ログイン=inatani、user autostartなし・swayidleなし（画面OFF無効）、calendar-appユーザー・/opt・/var/lib・/etcは未作成、passwordless sudo可。
+
+追加：`ops/install/install-production.sh`（既定dry run、`--apply`で実行、未commitならapply拒否、Node SHA256検証、専用ユーザー、root所有release＋atomic `current`切替＋`previous`、runtime.env維持、dev token取込、unit描画とバックアップ、ready確認）、`ops/install/pi-calendar-cli.sh`（本番CLI。auth中はWorker停止）、`ops/kiosk/install-kiosk.sh`（user、バックアップ、重複追加なし、uninstall）、supervisorのkiosk用フラグ（keyringプロンプト・スワイプ戻り防止。sandbox/TLSは既定のまま）、web unitに`HOSTNAME=127.0.0.1`固定。手順は[PI_INSTALL](PI_INSTALL.md)。
+
+Pi上の結果：`npm run check` **87件合格**（ops 8件追加：kiosk installerを一時HOMEでapply/冪等/uninstall、GUI外での起動拒否、危険フラグなし、unitの非root・hardening・network-online非依存、installerのapply拒否）。読取専用にしたdistのコピーからgoogleモードのWeb（`/`・ready・version・events・静的JS すべて200、書込みエラーなし）とWorker `--once`を起動確認。installer dry runの全手順を出力確認。
+
+未検証：sudo適用、systemd上での起動、kiosk表示、ネットあり/なし再起動、ブラウザ終了復帰、タッチ。

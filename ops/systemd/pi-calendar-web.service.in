@@ -1,4 +1,4 @@
-# TEMPLATE: replace @NODE_BIN@ and confirm directories/dist before installing.
+# TEMPLATE: rendered by ops/install/install-production.sh (replaces @NODE_BIN@). Do not enable the .in file directly.
 [Unit]
 Description=Pi Calendar local web UI
 After=local-fs.target
@@ -11,6 +11,8 @@ User=calendar-app
 Group=calendar-app
 WorkingDirectory=/opt/pi-calendar/current
 EnvironmentFile=/etc/pi-calendar/runtime.env
+# Never bind beyond loopback even if runtime.env is edited.
+Environment=HOSTNAME=127.0.0.1
 ExecStart=@NODE_BIN@ /opt/pi-calendar/current/dist/web/server.js
 Restart=on-failure
 RestartSec=5
