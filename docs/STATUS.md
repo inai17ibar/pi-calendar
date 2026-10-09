@@ -1,12 +1,12 @@
 # 実装状況
 
-最終更新：2026-10-08（クラウドLinux x86_64、Node 24.19.0、npm 11.9.0）
+最終更新：2026-10-09（クラウドLinux x86_64、Node 24.19.0、npm 11.9.0）
 
 | 段階 | 状態 | 証跡 |
 |---|---|---|
 | スターター仕様/テンプレート | 取り込み済み | 元のREADMEはSTARTER_README.md、既存docs/ops/fixturesを保持 |
 | M0 基盤 | 実装・検証済み | pin/lock、strict TS、config検証、Clock/Provider/Repository境界 |
-| M1 合成UI | クラウド検証済み | 月/日/詳細/設定/状態/時計、4viewport |
+| M1 合成UI | クラウド検証済み | 月/週/日/詳細/設定/状態/時計、4viewport |
 | M2 Google同期/SQLite/Worker | 未着手 | Google通信/認証なし、mockメモリのみ |
 | M3 Pi起動 | 未着手 | 実機OS・arm64・タッチ・自動起動未検証 |
 | M4 update/rollback | 未着手 | 未実装 |
@@ -41,3 +41,19 @@ Gitリポジトリは元々空であったため、スターターをmainの初�
 ## Pi試験用の追加確認（2026-10-08）
 
 現在の開発Webを再取得し、ready HTTP 200、日別events 5件、HTML HTTP 200、Chromiumページエラー0件を確認。[現在の実画面](screenshots/current-cloud-1280x853.png)を追加。`npm start`をstandalone出力の起動に統一し、runtimeテストも同じコマンドを使う。Piのclone/pull/build手順は[PI_TRIAL](PI_TRIAL.md)に記録。Piでの実行結果はまだ未確認。
+
+## PR #5 デザイン・週表示の追加確認（2026-10-09）
+
+GitHubの `feat/mock-calendar-ui`、`caf9ed0` を取得して実装。前環境の未push変更は使用していない。CAL-01/02/05、UI-01/02/03に関連するGoogleカレンダー風のデザインと時間軸付き週表示を追加。主な変更は `Calendar.tsx`、`WeekCalendar.tsx`、`globals.css`、週境界/重複時間帯のdomain計算、unit/e2e、画面仕様とPi試験手順。
+
+- `npm run check`：lint・型チェック成功、unit/integration **39件合格**。月/年境界の週、跨日のクリップ、終端排他、重複時間帯の列分けを含む。
+- `npm run build`：成功、standaloneと静的アセットを出力。
+- `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/usr/bin/chromium npm run test:runtime`：**1件合格**。production API・月末0時の今日追従と手動選択保持。
+- `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/usr/bin/chromium npm run test:e2e`：**20件合格**。1920×1280、1536×1024、1280×853、1024×683 CSS px。月跨ぎの両月取得、重複コピーの除去、終日終了排他・複数日・跨日、週始まり/起動時週表示の保存、未取得と通信失敗、Chromiumタッチエミュレーションでの週移動・詳細開閉・時間軸スクロール。
+- 実ブラウザのスクリーンショットを保存し、月/日/週の配置、跨日の0時側と複数日の終日欄を目視確認。
+
+[月](screenshots/calendar-1280x853.png) / [日](screenshots/day-1280x853.png) / [週](screenshots/week-1280x853.png) / [跨日](screenshots/week-midnight-1280x853.png) / [複数日](screenshots/week-multiday-1280x853.png)。月/日/週は4viewportの証跡を保存。旧 `current-cloud` は以前のデザインの記録。
+
+タッチ検証はChromiumのエミュレーションであり、Pi実機・arm64実行・実機タッチは未確認。短い時刻予定は48pxの操作領域を確保するため実時間より高さが大きくなる。同期データはmockのみで、同じ要求月範囲の通信失敗時にブラウザ内のサンプルを保持し、異なる未取得範囲へ流用しない。Google同期・認証・Pi OS設定は変更していない。
+
+次の最小確認：Pi上でこのPRブランチを取得し、`docs/PI_TRIAL.md` の月/週/日・タッチ操作を実機確認する。

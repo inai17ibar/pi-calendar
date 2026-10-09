@@ -25,3 +25,22 @@ describe('fixture date boundaries',()=>{
  it('uses explicit timezone for clock',()=>expect(dateInZone({now:()=>new Date('2026-10-03T23:59:00Z')},zone)).toBe('2026-10-04'));
  it('classifies current and next events',()=>{expect(eventPhase(events[1],clock)).toBe('upcoming');expect(eventPhase(events[1],{now:()=>new Date('2026-10-03T15:30:00+09:00')})).toBe('ongoing');expect(eventPhase(events[1],{now:()=>new Date('2026-10-03T16:00:00+09:00')})).toBe('ended');});
 });
+
+import {weekDays,timedSegments} from '../../src/domain/calendar';
+it('week crosses month and year with either week start',()=>{
+ expect(weekDays('2026-10-01',1)).toEqual(['2026-09-28','2026-09-29','2026-09-30','2026-10-01','2026-10-02','2026-10-03','2026-10-04']);
+ expect(weekDays('2027-01-01',0)[0]).toBe('2026-12-27');
+});
+it('splits midnight events on both days and preserves exclusive end',()=>{
+ const e=events.find(e=>e.id==='demo-midnight')!;
+ expect(timedSegments([e],'2026-10-03',zone)[0]).toMatchObject({start:1410,end:1440,continuesAfter:true});
+ expect(timedSegments([e],'2026-10-04',zone)[0]).toMatchObject({start:0,end:30,continuesBefore:true});
+ expect(timedSegments([{...e,end:'2026-10-04T00:00:00+09:00'}],'2026-10-04',zone)).toHaveLength(0);
+ expect(timedSegments(events,'2026-10-03',zone).every(s=>s.event.kind==='timed')).toBe(true);
+});
+it('overlap columns include connected groups but touching events share a column',()=>{
+ const e=events.find(e=>e.kind==='timed')!;
+ const make=(id:string,start:string,end:string)=>({...e,id,start:`2026-10-03T${start}:00+09:00`,end:`2026-10-03T${end}:00+09:00`});
+ const s=timedSegments([make('a','09:00','10:00'),make('b','09:30','11:00'),make('c','10:00','10:30'),make('d','11:00','12:00')],'2026-10-03',zone);
+ expect(s.map(e=>[e.lane,e.lanes])).toEqual([[0,2],[1,2],[0,2],[0,1]]);
+});

@@ -36,3 +36,26 @@ export function eventPhase(event: CalendarEvent, clock: Clock): 'ongoing' | 'upc
  const now = clock.now().getTime();
  return now >= DateTime.fromISO(event.end).toMillis() ? 'ended' : now >= DateTime.fromISO(event.start).toMillis() ? 'ongoing' : 'upcoming';
 }
+export function weekDays(day: string, weekStart: 0 | 1): string[] {
+ const date = DateTime.fromISO(day);
+ const first = date.minus({days:(date.weekday % 7 - weekStart + 7) % 7});
+ return Array.from({length:7}, (_,i)=>first.plus({days:i}).toISODate()!);
+}
+export function timedSegments(events: CalendarEvent[], day: string, zone: string) {
+ const {start,end}=dayBounds(day,zone);
+ const segments=eventsForDay(events,day,zone).filter(e=>e.kind==='timed').map(event=>{
+  const from=DateTime.fromISO(event.start).setZone(zone), to=DateTime.fromISO(event.end).setZone(zone);
+  const clippedStart=from < start ? start : from, clippedEnd=to > end ? end : to;
+  return {event,start:clippedStart.hour*60+clippedStart.minute,end:clippedEnd.equals(end)?1440:clippedEnd.hour*60+clippedEnd.minute,lane:0,lanes:1,continuesBefore:from<start,continuesAfter:to>end};
+ }).sort((a,b)=>a.start-b.start || a.end-b.end);
+ // Allocate columns within each connected overlap group; touching ends are exclusive.
+ let group:typeof segments=[];
+ let groupEnd=-1;
+ const finish=()=>{const count=Math.max(1,...group.map(s=>s.lane+1));group.forEach(s=>s.lanes=count);};
+ for(const segment of segments){
+  if(segment.start>=groupEnd){finish();group=[];groupEnd=-1;}
+  let lane=0;while(group.some(s=>s.lane===lane && s.end>segment.start))lane++;
+  segment.lane=lane;group.push(segment);groupEnd=Math.max(groupEnd,segment.end);
+ }
+ finish();return segments;
+}
