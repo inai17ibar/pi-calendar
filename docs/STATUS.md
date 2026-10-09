@@ -9,7 +9,7 @@
 | M0 基盤 | 実装・検証済み | pin/lock、strict TS、config検証、Clock/Provider/Repository境界 |
 | M1 合成UI | クラウド検証済み | 月/日/詳細/設定/状態/時計、4viewport |
 | M2 Google同期/SQLite/Worker | 実装・fake Googleで検証済み | T201–T205。実アカウント接続（T206）はユーザー操作待ち |
-| M3 Pi起動 | 実装済み・実機適用待ち | installer/kiosk/unit。sudo適用と再起動試験はユーザー承認後 |
+| M3 Pi起動 | 実機適用済み・再起動試験待ち | systemd 2サービス稼働、kiosk起動、異常終了からの復帰を確認 |
 | M1 合成UI | クラウド検証済み | 月/週/日/詳細/設定/状態/時計、4viewport |
 | M2 Google同期/SQLite/Worker | 未着手 | Google通信/認証なし、mockメモリのみ |
 | M3 Pi起動 | 未着手 | 実機OS・arm64・タッチ・自動起動未検証 |
@@ -108,3 +108,11 @@ GitHubの `feat/mock-calendar-ui`、`caf9ed0` を取得して実装。前環境�
 Pi上の結果：`npm run check` **87件合格**（ops 8件追加：kiosk installerを一時HOMEでapply/冪等/uninstall、GUI外での起動拒否、危険フラグなし、unitの非root・hardening・network-online非依存、installerのapply拒否）。読取専用にしたdistのコピーからgoogleモードのWeb（`/`・ready・version・events・静的JS すべて200、書込みエラーなし）とWorker `--once`を起動確認。installer dry runの全手順を出力確認。
 
 未検証：sudo適用、systemd上での起動、kiosk表示、ネットあり/なし再起動、ブラウザ終了復帰、タッチ。
+
+### 実機適用（2026-10-09、ユーザー承認済み）
+
+開発Worker/Webを停止後、`sudo bash ops/install/install-production.sh --import-dev-state .local/dev --apply` を実行（release `20261009074142-e2665a51ed84`）。初回は`next build`が`next-env.d.ts`を書き換えたためinstallerが未commitとして拒否 → Next公式の推奨どおりGit管理から外し、`typecheck`で`next typegen`を先に実行するよう修正して再実行。
+
+結果：ready（google/sqlite/googleConfigured=true）、両サービスactive、Worker初回で5カレンダー・20件の月取得がすべてok（約3.2秒）、`sudo pi-calendar status` auth=ok、state=fresh。`/var/lib/pi-calendar`とsecretsは calendar-app の0700/0600。`bash ops/kiosk/install-kiosk.sh --apply` 後にsupervisorを起動し、専用プロファイルのChromiumが起動。Chromiumをkill → supervisorが再起動。web/syncをSIGKILL → systemdが7秒以内に再起動、Workerは死んだPIDのlockを置換して再開。画面の見た目は個人予定を含むためAIはスクリーンショットを取得していない（ユーザーが目視確認）。
+
+未検証：OS再起動（ネットあり/なし）での自動表示、タッチ、長時間稼働。
