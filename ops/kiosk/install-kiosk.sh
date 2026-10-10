@@ -16,12 +16,13 @@ printf 'Pi Calendar kiosk — %s\n' "$([ "$apply" -eq 1 ] && echo APPLY || echo 
 pgrep -x labwc >/dev/null || printf 'WARNING: labwc is not running for this session; this installer only configures labwc autostart.\n'
 if [ -f "$autostart" ]; then run cp -a "$autostart" "$autostart.bak.$(date -u +%Y%m%dT%H%M%SZ)"; fi
 if [ "$uninstall" -eq 1 ]; then
-  if [ -f "$autostart" ]; then run sed -i '\#pi-calendar-kiosk#d' "$autostart"; fi
+  if [ -f "$autostart" ]; then run sed -i.tmp '\#pi-calendar-kiosk#d' "$autostart"; run rm -f "$autostart.tmp"; fi
   run rm -f "$bin"
   printf 'Removed. A running kiosk stops with: touch ~/.config/pi-calendar/maintenance\n'
   exit 0
 fi
-run install -D -m 0755 "$src" "$bin"
+run mkdir -p "$(dirname "$bin")"
+run install -m 0755 "$src" "$bin"
 run mkdir -p "$HOME/.config/labwc"
 if [ -f "$autostart" ] && grep -qF 'pi-calendar-kiosk' "$autostart"; then
   printf '  = autostart entry already present\n'
