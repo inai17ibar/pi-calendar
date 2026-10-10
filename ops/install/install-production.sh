@@ -40,9 +40,10 @@ fail() { printf 'ERROR: %s\n' "$*" >&2; exit 1; }
 [ "$(uname -m)" = aarch64 ] || fail 'Linux arm64 (aarch64) only.'
 [ -f "$SRC/dist/web/server.js" ] && [ -f "$SRC/dist/worker.mjs" ] && [ -f "$SRC/dist/cli.mjs" ] || fail 'Build first as the normal user: npm ci && npm run build'
 if [ "$apply" -eq 1 ] && [ "$(id -u)" -ne 0 ]; then fail 'Run with sudo for --apply.'; fi
-if ! git -C "$SRC" diff --quiet HEAD -- 2>/dev/null; then
-  if [ "$apply" -eq 1 ]; then fail 'Working tree has uncommitted changes; install only committed code.'; fi
-  printf 'WARNING: uncommitted changes; --apply will refuse until they are committed.\n'
+working_tree_status=$(git -C "$SRC" status --porcelain=v1 --untracked-files=all) || fail 'Cannot inspect Git working tree; install only committed code.'
+if [ -n "$working_tree_status" ]; then
+  if [ "$apply" -eq 1 ]; then fail 'Working tree has uncommitted or untracked changes; install only committed code.'; fi
+  printf 'WARNING: uncommitted or untracked changes; --apply will refuse until they are committed.\n'
 fi
 commit=$(git -C "$SRC" rev-parse HEAD)
 release_id="$(date -u +%Y%m%d%H%M%S)-${commit:0:12}"

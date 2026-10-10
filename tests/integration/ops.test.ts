@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { execFileSync, spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { chmodSync, copyFileSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 
@@ -8,9 +8,16 @@ const root = resolve(__dirname, '../..');
 const kiosk = join(root, 'ops/kiosk/install-kiosk.sh');
 let home: string;
 // Hermetic env: temp HOME, no GUI session variables from the developer's desktop.
-const env = () => ({ PATH: process.env.PATH ?? '/usr/bin:/bin', HOME: home }) as unknown as NodeJS.ProcessEnv;
+const env = () => ({ PATH: `${join(home, 'host-bin')}:${process.env.PATH ?? '/usr/bin:/bin'}`, HOME: home }) as unknown as NodeJS.ProcessEnv;
 const runKiosk = (...args: string[]) => execFileSync('bash', [kiosk, ...args], { env: env(), encoding: 'utf8' });
-beforeEach(() => { home = mkdtempSync(join(tmpdir(), 'pi-cal-home-')); });
+beforeEach(() => {
+ home = mkdtempSync(join(tmpdir(), 'pi-cal-home-'));
+ // Model the GUI user even when the test runner is root in a container.
+ const bin = join(home, 'host-bin');
+ mkdirSync(bin);
+ writeFileSync(join(bin, 'id'), '#!/bin/sh\n[ "$1" = "-u" ] && { echo 1000; exit 0; }; exit 1\n');
+ chmodSync(join(bin, 'id'), 0o755);
+});
 afterEach(() => rmSync(home, { recursive: true, force: true }));
 
 describe('kiosk installer', () => {
@@ -69,5 +76,81 @@ describe('production installer', () => {
    const r = spawnSync('bash', [join(root, 'ops/install/install-production.sh'), '--apply'], { encoding: 'utf8' });
    expect(r.status).not.toBe(0);
   }
+ });
+});
+
+// Exercise the real preflight in a disposable Git repository. Command stubs
+// allow host-independent checks and fail closed if --apply reaches a mutation.
+describe('production installer working tree preflight', () => {
+ let source: string;
+ let testEnv: NodeJS.ProcessEnv;
+ beforeEach(() => {
+  source = join(home, 'source');
+  const bin = join(home, 'bin');
+  mkdirSync(join(source, 'ops/install'), { recursive: true });
+  mkdirSync(bin);
+  copyFileSync(join(root, 'ops/install/install-production.sh'), join(source, 'ops/install/install-production.sh'));
+  mkdirSync(join(source, 'ops/systemd'), { recursive: true });
+  for (const name of ['pi-calendar-web', 'pi-calendar-sync'])
+   copyFileSync(join(root, `ops/systemd/${name}.service.in`), join(source, `ops/systemd/${name}.service.in`));
+  writeFileSync(join(source, '.gitignore'), 'dist/\n');
+  writeFileSync(join(source, 'tracked.ts'), 'export const value = 1;\n');
+  testEnv = { ...env(), PATH: `${bin}:${process.env.PATH}`, GIT_CONFIG_NOSYSTEM: '1', GIT_CONFIG_GLOBAL: '/dev/null' };
+  const git = (...args: string[]) => execFileSync('git', ['-C', source, ...args], { env: testEnv });
+  git('init', '-b', 'main');
+  git('add', '.');
+  git('-c', 'user.name=Test', '-c', 'user.email=test@example.invalid', 'commit', '-m', 'fixture');
+  for (const name of ['web/server.js', 'worker.mjs', 'cli.mjs']) {
+   const path = join(source, 'dist', name);
+   mkdirSync(resolve(path, '..'), { recursive: true });
+   writeFileSync(path, '');
+  }
+  const stub = (name: string, script: string) => {
+   const path = join(bin, name);
+   writeFileSync(path, `#!/bin/sh\n${script}\n`);
+   chmodSync(path, 0o755);
+  };
+  stub('uname', 'echo aarch64');
+  stub('id', '[ "$1" = "-u" ] && { echo 0; exit 0; }; exit 1');
+  for (const command of ['curl', 'install', 'useradd', 'tar', 'cp', 'chown', 'chmod', 'ln', 'mv', 'systemctl', 'mktemp'])
+   stub(command, `echo 'Unexpected mutation: ${command}' >&2; exit 99`);
+ });
+ const run = (...args: string[]) => spawnSync('bash', [join(source, 'ops/install/install-production.sh'), ...args], { env: testEnv, encoding: 'utf8' });
+ const dirty = (kind: string) => {
+  if (kind === 'untracked') writeFileSync(join(source, 'new source.ts'), 'export {};\n');
+  else {
+   writeFileSync(join(source, 'tracked.ts'), 'export const value = 2;\n');
+   if (kind === 'staged') execFileSync('git', ['-C', source, 'add', 'tracked.ts'], { env: testEnv });
+  }
+ };
+ it.each(['unstaged', 'staged', 'untracked'])('refuses --apply for %s files before system changes', kind => {
+  dirty(kind);
+  const result = run('--apply');
+  expect(result.status).toBe(1);
+  expect(result.stderr).toContain('uncommitted or untracked changes');
+  expect(result.stderr).not.toContain('Unexpected mutation');
+  expect(result.stdout).not.toContain('1. Root-managed');
+ });
+ it.each(['unstaged', 'staged', 'untracked'])('preserves dry run with a warning for %s files', kind => {
+  dirty(kind);
+  const result = run();
+  expect(result.status).toBe(0);
+  expect(result.stdout).toContain('WARNING: uncommitted or untracked changes');
+  expect(result.stdout).toContain('DRY RUN');
+  expect(result.stdout).toContain('9. Verify');
+  expect(result.stderr).not.toContain('Unexpected mutation');
+ });
+ it('refuses to apply when Git status cannot be inspected', () => {
+  rmSync(join(source, '.git'), { recursive: true, force: true });
+  const result = run('--apply');
+  expect(result.status).toBe(1);
+  expect(result.stderr).toContain('Cannot inspect Git working tree');
+  expect(result.stderr).not.toContain('Unexpected mutation');
+ });
+ it('allows a clean dry run with ignored build outputs', () => {
+  const result = run();
+  expect(result.status).toBe(0);
+  expect(result.stdout).toContain('DRY RUN');
+  expect(result.stdout).not.toContain('WARNING:');
  });
 });

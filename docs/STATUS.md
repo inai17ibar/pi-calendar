@@ -116,3 +116,20 @@ Pi上の結果：`npm run check` **87件合格**（ops 8件追加：kiosk instal
 結果：ready（google/sqlite/googleConfigured=true）、両サービスactive、Worker初回で5カレンダー・20件の月取得がすべてok（約3.2秒）、`sudo pi-calendar status` auth=ok、state=fresh。`/var/lib/pi-calendar`とsecretsは calendar-app の0700/0600。`bash ops/kiosk/install-kiosk.sh --apply` 後にsupervisorを起動し、専用プロファイルのChromiumが起動。Chromiumをkill → supervisorが再起動。web/syncをSIGKILL → systemdが7秒以内に再起動、Workerは死んだPIDのlockを置換して再開。画面の見た目は個人予定を含むためAIはスクリーンショットを取得していない（ユーザーが目視確認）。
 
 未検証：OS再起動（ネットあり/なし）での自動表示、タッチ、長時間稼働。
+
+## PR #7 レビュー修正（2026-10-10、M3 / T302）
+
+- P1：`.gitignore`の`next-env.d.ts`除外を削除し、Nextが生成したファイルを追跡対象に復帰。ビルド等で更新された場合は差分確認後にcommitする運用を`PI_INSTALL.md`へ明記。過去の実機適用記録にある追跡除外は当時の対応であり、今回取り消した。
+- P2：本番インストーラの事前確認を`git status --porcelain=v1 --untracked-files=all`へ変更。未stage・stage済み・未追跡の変更がある場合、システム変更前に`--apply`を拒否。Git状態を確認できない場合も拒否。Git除外済みのビルド出力は許容し、dry runは変更があっても警告付きで計画表示を維持。
+- 回帰テスト8件追加：変更3種類のapply拒否とdry run維持、Git検査失敗時の拒否、ignored dist付きのクリーンなdry run。実インストーラを一時Gitリポジトリとコマンドスタブで実行し、OSへの変更を防止。既存kioskテストもGUIユーザーのidをスタブにしてrootコンテナで実行可能にした（本番のroot拒否は変更なし）。
+
+検証環境：クラウドLinux x86_64、Node 24.19.0、npm 11.9.0。
+
+- `npm ci`：成功。
+- `npm run check`：lint・typecheck成功、unit/integration **95件合格**。
+- `npm run build`：成功。Next standaloneを`dist/web`へ配置し、Worker/CLIをbundle。
+- `bash -n ops/install/install-production.sh`、`git diff --check`：成功。
+
+初回テストは既存kioskのroot実行拒否と新規dry run fixtureのunit不足で失敗し、テスト環境を修正後に全件再実行して成功。
+未実施：UI/e2e/runtime、Pi Linux arm64での再ビルド、本番インストール、systemd/kiosk・ネットあり/なし再起動。今回のテストは事前確認とdry runの検証であり、Pi実機試験の代替ではない。
+次の最小確認：Piでcommitを取得し、check/build後にワークツリーのクリーン状態を確認してdry run。実適用・OS再起動は変更内容を示したうえで承認後に行う。

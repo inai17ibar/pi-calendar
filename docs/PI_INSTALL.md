@@ -6,9 +6,11 @@
 
 ```bash
 cd ~/src/pi-calendar
-git status            # 未commitの変更があると --apply は拒否されます
+git status --untracked-files=all # 未commit・未追跡の変更があると --apply は拒否されます
 npm ci && npm run check && npm run build
 ```
+
+`next-env.d.ts`はGitで追跡します。型チェックやビルドで更新された場合は差分を確認してcommitし、適用前にワークツリーがクリーンであることを再確認してください。Gitで除外した`dist/`等の生成物は変更検出の対象外です。dry runは変更があっても警告を出して計画を表示します。
 
 ## 2. 本番インストール（sudo）
 
