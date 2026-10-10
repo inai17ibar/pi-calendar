@@ -1,4 +1,4 @@
-# TEMPLATE: replace @NODE_BIN@ and confirm directories/dist before installing.
+# TEMPLATE: rendered by ops/install/install-production.sh (replaces @NODE_BIN@). Do not enable the .in file directly.
 [Unit]
 Description=Pi Calendar synchronization worker
 After=local-fs.target
