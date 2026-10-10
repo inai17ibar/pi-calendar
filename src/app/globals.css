@@ -83,3 +83,12 @@ h2{font-size:24px}
 .month-panel{height:600px}
 .brand small{display:none}
 }
+
+/* Cards participate in native touch panning; desktop users can drag their content. */
+.agenda-list{touch-action:pan-y;overscroll-behavior:contain;user-select:none;cursor:grab}
+.agenda-list .event-card{touch-action:pan-y;cursor:grab}
+.agenda-list:active,.agenda-list .event-card:active{cursor:grabbing}
+button:disabled{cursor:wait;opacity:.65}
+.topbar .refresh-button{color:var(--accent);border-color:var(--accent);white-space:nowrap}
+.update-message{font-size:12px}
+@media(max-width:1300px){.topbar{flex-wrap:wrap}.topbar nav{margin-left:auto}.topbar .clock{margin-left:auto}}

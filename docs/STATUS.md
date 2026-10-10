@@ -57,3 +57,18 @@ GitHubの `feat/mock-calendar-ui`、`caf9ed0` を取得して実装。前環境�
 タッチ検証はChromiumのエミュレーションであり、Pi実機・arm64実行・実機タッチは未確認。短い時刻予定は48pxの操作領域を確保するため実時間より高さが大きくなる。同期データはmockのみで、同じ要求月範囲の通信失敗時にブラウザ内のサンプルを保持し、異なる未取得範囲へ流用しない。Google同期・認証・Pi OS設定は変更していない。
 
 次の最小確認：Pi上でこのPRブランチを取得し、`docs/PI_TRIAL.md` の月/週/日・タッチ操作を実機確認する。
+
+## 環境障害後の追加機能の再構成（2026-10-10）
+
+未commitの変更が残ったクラウド環境は pending/offline で、コマンド・ファイル読取が使用不能。元ディスクを読み出したものではなく、このスレッドの編集コマンド・表示済みコードを基に、GitHubの c4c32a2304c57fd5c21faa85a862c61f1b189ab2 へ7ファイルの変更を再構成した。環境の復旧は完了していない。
+
+- 自動テーマ：アプリtimezone基準で22:00〜翌7:00はdark。auto/light/dark設定。
+- 日曜始まりを既定とし、旧設定をversion 2へ移行。移行後の月曜始まり選択は保持。
+- AgendaScroll：カード上でのnative touch pan、マウスドラッグ、ドラッグ後の詳細誤表示抑止。スクロールバーとキーボード操作は維持。
+- 「予定を更新」：mock APIの手動再取得、更新中の無効化、成功/失敗メッセージ、同じ範囲の取得済み予定の保持。
+- 変更：src/components/Calendar.tsx、src/app/globals.css、tests/e2e/calendar.spec.ts、tests/runtime/clock.spec.ts。
+- 新規：src/components/AgendaScroll.tsx、src/domain/preferences.ts、tests/unit/preferences.test.ts。
+
+元環境での追加変更はlint/typecheck/unit/integration 46件まで合格した記録があるが、この再構成版での再実行はできていない。build、e2e、runtime、追加機能の実スクリーンショット確認も未完了。以前のスクリーンショットは今回の追加機能の証跡ではない。Google同期・Pi OS設定は対象外で、更新ボタンはGoogle同期を行わない。
+
+次の確認：Macなど正常な環境で npm ci、npm run check、npm run build、npm run test:e2e、npm run test:runtime を実行。PlaywrightのChromiumが必要。Pi実機タッチは別途確認する。元環境が戻ったら、再構成版と未commit変更を比較してからローカル履歴を整理する。

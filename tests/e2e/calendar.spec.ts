@@ -41,7 +41,7 @@ test('preferences, missing state and failure retain cached samples',async({page}
  await page.getByRole('button',{name:'設定',exact:true}).click();await page.getByLabel('デモの取得状態').selectOption('auth_required');await page.getByRole('button',{name:'設定を閉じる'}).click();
  await expect(page.locator('.event-card')).toHaveCount(5);await expect(page.getByRole('status')).toContainText('再認証が必要');
  await page.reload();await expect(page.locator('.calendar-app')).toHaveClass(/dark large/);await expect(page.locator('.event-card')).toHaveCount(5);
- await page.route('**/api/events?*',route=>route.abort());await page.getByRole('button',{name:'再取得',exact:true}).click();
+ await page.route('**/api/events?*',route=>route.abort());await page.getByRole('button',{name:'予定を更新',exact:true}).click();
  await expect(page.getByRole('status')).toContainText('オフライン');await expect(page.locator('.event-card')).toHaveCount(5);
  await page.getByRole('button',{name:'翌月',exact:true}).click();await expect(page.locator('.event-card')).toHaveCount(0);await expect(page.getByText('予定はありません')).toHaveCount(0);
 });
@@ -57,6 +57,7 @@ test('fixed injected clock preserves a manually selected day',async({page})=>{
 test('week timeline crosses months, separates all-day and midnight, and supports touch',async({page},info)=>{
  const errors:string[]=[];page.on('pageerror',e=>errors.push(e.message));
  await page.goto('/');await expect(page.locator('.event-card')).toHaveCount(5);
+ await page.getByRole('button',{name:'設定',exact:true}).click();await page.getByLabel('週の始まり').selectOption('1');await page.getByRole('button',{name:'設定を閉じる'}).click();
  const requests:string[]=[];page.on('request',r=>{if(r.url().includes('/api/events?'))requests.push(r.url());});
  await page.getByRole('button',{name:'週',exact:true}).click();
  await expect(page.getByRole('heading',{name:'2026年 9月28日 – 10月4日'})).toBeVisible();
@@ -102,8 +103,53 @@ test('cross-month copies are deduplicated and failed new weeks stay unacquired',
  await expect(page.locator('.all-day-event').first()).toContainText('→');
  await expect(page.locator('.all-day-event').last()).toContainText('←');
  await page.unroute('**/api/events?*');await page.route('**/api/events?*',route=>route.abort());
- await page.getByRole('button',{name:'再取得',exact:true}).click();
+ await page.getByRole('button',{name:'予定を更新',exact:true}).click();
  await expect(page.getByRole('status')).toContainText('オフライン');await expect(page.locator('.all-day-event')).toHaveCount(2);
  await page.getByRole('button',{name:'翌週',exact:true}).click();
  await expect(page.locator('.all-day-event')).toHaveCount(0);await expect(page.locator('.week-header .unfetched')).toHaveCount(7);
+});
+
+test('Sunday defaults migrate saved settings and allow subsequent Monday choice',async({page})=>{
+ await page.addInitScript(()=>{if(!localStorage.getItem('pi-calendar-preferences'))localStorage.setItem('pi-calendar-preferences',JSON.stringify({theme:'light',weekStart:1,scale:'normal',startupView:'month'}));});
+ await page.goto('/');await expect(page.locator('.weekdays span').first()).toHaveText('日');
+ await expect(page.locator('.day-cell').first()).toHaveAttribute('aria-label',/^2026-09-27/);
+ await page.getByRole('button',{name:'週',exact:true}).click();
+ await expect(page.getByRole('heading',{name:'2026年 9月27日 – 10月3日'})).toBeVisible();
+ await page.getByRole('button',{name:'設定',exact:true}).click();await expect(page.getByLabel('テーマ')).toHaveValue('auto');
+ await page.getByLabel('週の始まり').selectOption('1');await page.getByRole('button',{name:'設定を閉じる'}).click();
+ await page.reload();await expect(page.locator('.weekdays span').first()).toHaveText('月');
+});
+
+test('manual refresh shows progress, new events and failure retains samples',async({page})=>{
+ await page.goto('/');await expect(page.locator('.event-card')).toHaveCount(5);
+ let release!:()=>void;const wait=new Promise<void>(resolve=>{release=resolve;});
+ await page.route('**/api/events?*',async route=>{await wait;await route.fulfill({json:{events:[{id:'updated',calendarId:'test',calendarName:'合成',color:'#1a73e8',title:'手動更新後の予定',kind:'allDay',start:'2026-10-03',end:'2026-10-04'}],complete:true,fetchedAt:'2026-10-03T05:21:00Z',state:'fresh',synthetic:true}});});
+ await page.getByRole('button',{name:'予定を更新',exact:true}).tap();
+ await expect(page.getByRole('button',{name:'更新中…'})).toBeDisabled();
+ await expect(page.locator('.event-card')).toHaveCount(5);
+ release();await expect(page.locator('.event-card')).toHaveCount(1);await expect(page.getByRole('status')).toContainText('予定を更新しました');
+ await expect(page.locator('.event-card')).toContainText('手動更新後の予定');
+ await page.unroute('**/api/events?*');await page.route('**/api/events?*',route=>route.abort());
+ await page.getByRole('button',{name:'予定を更新',exact:true}).tap();
+ await expect(page.getByRole('status')).toContainText('更新できませんでした');await expect(page.locator('.event-card')).toContainText('手動更新後の予定');
+});
+
+test('event content scrolls with wheel, mouse drag and touch without opening details',async({page},info)=>{
+ const events=Array.from({length:20},(_,i)=>({id:`scroll-${i}`,calendarId:'test',calendarName:'合成',color:'#1a73e8',title:`スクロール確認 ${i+1}`,kind:'allDay',start:'2026-10-03',end:'2026-10-04'}));
+ await page.route('**/api/events?*',route=>route.fulfill({json:{events,complete:true,fetchedAt:'2026-10-03T05:20:00Z',state:'fresh',synthetic:true}}));
+ await page.goto('/');await expect(page.locator('.event-card')).toHaveCount(20);
+ const list=page.locator('.agenda-list');await page.locator('.event-card').first().hover();await page.mouse.wheel(0,250);
+ await expect.poll(()=>list.evaluate(el=>el.scrollTop)).toBeGreaterThan(0);
+ await list.evaluate(el=>el.scrollTop=0);
+ const card=await page.locator('.event-card').first().boundingBox();if(!card)throw new Error('Missing card');
+ await page.mouse.move(card.x+50,card.y+card.height-15);await page.mouse.down();await page.mouse.move(card.x+50,card.y+10,{steps:10});await page.mouse.up();
+ await expect.poll(()=>list.evaluate(el=>el.scrollTop)).toBeGreaterThan(0);await expect(page.getByRole('dialog')).toHaveCount(0);
+ await list.evaluate(el=>el.scrollTop=0);
+ const client=await page.context().newCDPSession(page);
+ await client.send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[{x:card.x+50,y:card.y+card.height-15}]});
+ await client.send('Input.dispatchTouchEvent',{type:'touchMove',touchPoints:[{x:card.x+50,y:card.y+10}]});
+ await client.send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});
+ await expect.poll(()=>list.evaluate(el=>el.scrollTop)).toBeGreaterThan(0);await expect(page.getByRole('dialog')).toHaveCount(0);
+ await page.getByRole('button',{name:'設定',exact:true}).tap();await page.getByLabel('テーマ').selectOption('dark');await page.getByRole('button',{name:'設定を閉じる'}).tap();
+ await expect(page.locator('.calendar-app')).toHaveClass(/dark/);await page.screenshot({path:`test-results/features-dark-${info.project.name}.png`,fullPage:true});
 });
