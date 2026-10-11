@@ -1,6 +1,6 @@
 import { describe,it,expect } from 'vitest';
 import { DateTime } from 'luxon';
-import { dayBounds,eventsForDay,monthDays,eventPhase,dateInZone,type CalendarEvent } from '../../src/domain/calendar';
+import { mergeSnapshots,dayBounds,eventsForDay,monthDays,eventPhase,dateInZone,type CalendarEvent } from '../../src/domain/calendar';
 import {fixtureEvents} from '../../src/server/mock';
 import cases from '../../fixtures/cases.json';
 const zone='Asia/Tokyo';
@@ -43,4 +43,15 @@ it('overlap columns include connected groups but touching events share a column'
  const make=(id:string,start:string,end:string)=>({...e,id,start:`2026-10-03T${start}:00+09:00`,end:`2026-10-03T${end}:00+09:00`});
  const s=timedSegments([make('a','09:00','10:00'),make('b','09:30','11:00'),make('c','10:00','10:30'),make('d','11:00','12:00')],'2026-10-03',zone);
  expect(s.map(e=>[e.lane,e.lanes])).toEqual([[0,2],[1,2],[0,2],[0,1]]);
+});
+describe('multi-month merge (week view)',()=>{
+ const base={events:[],complete:true,available:true,fetchedAt:'2026-10-03T00:00:00Z',state:'fresh' as const,synthetic:false,calendars:[{id:'a',name:'A',color:'#000',fetched:true}]};
+ it('worst state, oldest fetch, all-month availability, dedupe',()=>{
+  const e=events[0];
+  const m=mergeSnapshots([{...base,events:[e]},{...base,events:[e],state:'offline',fetchedAt:'2026-10-02T00:00:00Z',available:false,complete:false,calendars:[{id:'a',name:'A',color:'#000',fetched:false}]}]);
+  expect(m).toMatchObject({state:'offline',fetchedAt:'2026-10-02T00:00:00Z',available:false,complete:false});
+  expect(m.events).toHaveLength(1);
+  expect(m.calendars![0].fetched).toBe(false);
+ });
+ it('missing fetch time in any month means unknown',()=>expect(mergeSnapshots([base,{...base,fetchedAt:null}]).fetchedAt).toBeNull());
 });

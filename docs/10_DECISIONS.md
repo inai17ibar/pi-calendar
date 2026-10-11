@@ -15,3 +15,12 @@
 
 これらは今回の設計案。ユーザーが個別のライブラリや運用方式まで承認済みという意味ではない。
 変更時は「背景/代案/選択理由/テスト/移行とrollback」を追記してから実装。
+
+## ADR-011 M2の依存選択（2026-10-09）
+
+- 背景：03_ARCHITECTUREはbetter-sqlite3と公式googleapisを第一候補としていた。Pi（Linux arm64）での再ビルドとrelease容量を減らしたい。
+- 選択：SQLiteはNode 24内蔵の`node:sqlite`（DatabaseSync、WAL、busy_timeout）。Google APIは`fetch`でCalendarList.list / Events.list / tokenエンドポイントのみを直接呼ぶ。Worker/CLIは`rolldown`（devDependency、固定版）で`dist/worker.mjs`・`dist/cli.mjs`へ単一ファイル化。
+- 理由：ネイティブaddonのarm64ビルドが不要。読み取り2endpointのみで、書込みAPIを呼ぶコードが存在しない。runtime依存はluxon/zodだけ。
+- 代案：better-sqlite3（成熟、ただしネイティブビルド）、googleapis（大きい、全API面を含む）。
+- テスト：tests/integration/google-sync.test.ts（ページング、途中失敗でのcache保持、空成功、401/403/429/5xx/network分類、上限、generation、PKCE/state、token 0600/保持/rotate、Origin/Content-Type）。Pi arm64 / Node 24.21.0で実行。
+- 移行/rollback：schema_version=1。新しいschemaのDBを古いreleaseは開かず明示エラー。`node:sqlite`に問題が出た場合はCalendarStoreの実装差し替えで対応（呼び出し側は同期API前提）。
