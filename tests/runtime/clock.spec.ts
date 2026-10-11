@@ -9,7 +9,8 @@ test('standalone app follows midnight across month, keeps manually selected date
  const next=endOfMonth.plus({minutes:2});await page.clock.setSystemTime(next.toJSDate());await page.clock.fastForward(15000);
  await expect(page.getByRole('heading',{name:new RegExp(`${next.month}月${next.day}日`)})).toBeVisible();
  await expect(page.getByRole('heading',{name:`${next.year}年 ${next.month}月`})).toBeVisible();
- const previous=next.minus({days:1});await page.getByRole('button',{name:new RegExp(`^${previous.toISODate()} `)}).click();
+ // The previous month's last day is not always in the new month grid (e.g. Sunday start with the 1st on Sunday).
+ const previous=next.minus({days:1});await page.getByRole('button',{name:'前月'}).click();await page.getByRole('button',{name:new RegExp(`^${previous.toISODate()} `)}).click();
  await page.clock.setSystemTime(next.plus({days:1}).toJSDate());await page.clock.fastForward(15000);
  await expect(page.getByRole('heading',{name:new RegExp(`${previous.month}月${previous.day}日`)})).toBeVisible();
  await page.getByRole('button',{name:'今日',exact:true}).click();await expect(page.getByRole('heading',{name:new RegExp(`${next.month}月${next.day+1}日`)})).toBeVisible();
@@ -21,7 +22,8 @@ test('auto theme switches at 22 and 7 while keeping selected day',async({page})=
  await page.getByRole('button',{name:/^2026-10-02 /}).click();
  await page.clock.setSystemTime(new Date('2026-10-03T22:00:00+09:00'));await page.clock.fastForward(15000);
  await expect(page.locator('.calendar-app')).toHaveClass(/dark/);await expect(page.getByRole('heading',{name:'10月2日 金曜日'})).toBeVisible();
- await page.reload();await expect(page.locator('.calendar-app')).toHaveClass(/dark/);
+ // After reload the first render uses the server's real time; the client clock takes over on the next tick.
+ await page.reload();await page.clock.fastForward(15000);await expect(page.locator('.calendar-app')).toHaveClass(/dark/);
  await page.clock.setSystemTime(new Date('2026-10-04T07:00:00+09:00'));await page.clock.fastForward(15000);
  await expect(page.locator('.calendar-app')).toHaveClass(/light/);
  await page.getByRole('button',{name:'設定',exact:true}).click();await page.getByLabel('テーマ').selectOption('dark');await page.getByRole('button',{name:'設定を閉じる'}).click();
