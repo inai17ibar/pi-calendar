@@ -133,3 +133,20 @@ Pi上の結果：`npm run check` **87件合格**（ops 8件追加：kiosk instal
 初回テストは既存kioskのroot実行拒否と新規dry run fixtureのunit不足で失敗し、テスト環境を修正後に全件再実行して成功。
 未実施：UI/e2e/runtime、Pi Linux arm64での再ビルド、本番インストール、systemd/kiosk・ネットあり/なし再起動。今回のテストは事前確認とdry runの検証であり、Pi実機試験の代替ではない。
 次の最小確認：Piでcommitを取得し、check/build後にワークツリーのクリーン状態を確認してdry run。実適用・OS再起動は変更内容を示したうえで承認後に行う。
+
+## 環境障害後の追加機能の再構成（2026-10-10）
+
+未commitの変更が残ったクラウド環境は pending/offline で、コマンド・ファイル読取が使用不能。元ディスクを読み出したものではなく、このスレッドの編集コマンド・表示済みコードを基に、GitHubの c4c32a2304c57fd5c21faa85a862c61f1b189ab2 へ7ファイルの変更を再構成した。環境の復旧は完了していない。
+
+- 自動テーマ：アプリtimezone基準で22:00〜翌7:00はdark。auto/light/dark設定。
+- 日曜始まりを既定とし、旧設定をversion 2へ移行。移行後の月曜始まり選択は保持。
+- AgendaScroll：カード上でのnative touch pan、マウスドラッグ、ドラッグ後の詳細誤表示抑止。スクロールバーとキーボード操作は維持。
+- 「予定を更新」：mock APIの手動再取得、更新中の無効化、成功/失敗メッセージ、同じ範囲の取得済み予定の保持。
+- 変更：src/components/Calendar.tsx、src/app/globals.css、tests/e2e/calendar.spec.ts、tests/runtime/clock.spec.ts。
+- 新規：src/components/AgendaScroll.tsx、src/domain/preferences.ts、tests/unit/preferences.test.ts。
+
+元環境での追加変更はlint/typecheck/unit/integration 46件まで合格した記録があるが、この再構成版での再実行はできていない。build、e2e、runtime、追加機能の実スクリーンショット確認も未完了。以前のスクリーンショットは今回の追加機能の証跡ではない。Google同期・Pi OS設定は対象外で、更新ボタンはGoogle同期を行わない。
+
+次の確認：Macなど正常な環境で npm ci、npm run check、npm run build、npm run test:e2e、npm run test:runtime を実行。PlaywrightのChromiumが必要。Pi実機タッチは別途確認する。元環境が戻ったら、再構成版と未commit変更を比較してからローカル履歴を整理する。
+
+2026-10-11 Mac（Darwin arm64、Node 26）で検証：再構成版単体で check 46件・e2e 32件合格。runtime 2件は週の始まり・サーバー時刻に依存するテスト側の問題を修正して合格。mainをmergeし、`refresh` はmockの更新表示とgoogleモードの `/api/sync/request` を統合、フッターの「再取得」は上部の「予定を更新」へ置換。merge後に check 86件、build、e2e 32件、runtime 2件合格。Pi実機タッチは未確認。
