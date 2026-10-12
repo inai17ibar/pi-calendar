@@ -9,7 +9,7 @@
 | M0 基盤 | 実装・検証済み | pin/lock、strict TS、config検証、Clock/Provider/Repository境界 |
 | M1 合成UI | クラウド検証済み | 月/日/詳細/設定/状態/時計、4viewport |
 | M2 Google同期/SQLite/Worker | 実装・fake Googleで検証済み | T201–T205。実アカウント接続（T206）はユーザー操作待ち |
-| M3 Pi起動 | 一部 | Pi arm64でのbuild/test/起動は確認。systemd・kiosk・自動起動は未着手 |
+| M3 Pi起動 | 実機適用済み・再起動試験待ち | systemd 2サービス稼働、kiosk起動、異常終了からの復帰を確認 |
 | M1 合成UI | クラウド検証済み | 月/週/日/詳細/設定/状態/時計、4viewport |
 | M2 Google同期/SQLite/Worker | 未着手 | Google通信/認証なし、mockメモリのみ |
 | M3 Pi起動 | 未着手 | 実機OS・arm64・タッチ・自動起動未検証 |
@@ -98,3 +98,38 @@ GitHubの `feat/mock-calendar-ui`、`caf9ed0` を取得して実装。前環境�
 ### 週表示の統合（2026-10-09）
 
 `feat/mock-calendar-ui` の週表示（c4c32a2）を本ブランチへmerge。週が2か月に跨る場合の応答統合を `mergeSnapshots`（最悪状態・最古取得・全月取得済みのみ表示）としてdomainへ移し、googleモードの表示月要求も週の全月に対して行う。Pi上で `npm run check` 79件、`test:e2e` 20件、`test:runtime` 1件合格。googleモード（合成データの一時DB）で週表示の時刻予定5件・終日2件、pageerror 0件を確認。
+
+## M3 常駐・全画面（2026-10-09、ブランチ feat/m3-kiosk）
+
+実機確認（読取のみ）：labwc `-m`（設定マージ）、lightdm自動ログイン=inatani、user autostartなし・swayidleなし（画面OFF無効）、calendar-appユーザー・/opt・/var/lib・/etcは未作成、passwordless sudo可。
+
+追加：`ops/install/install-production.sh`（既定dry run、`--apply`で実行、未commitならapply拒否、Node SHA256検証、専用ユーザー、root所有release＋atomic `current`切替＋`previous`、runtime.env維持、dev token取込、unit描画とバックアップ、ready確認）、`ops/install/pi-calendar-cli.sh`（本番CLI。auth中はWorker停止）、`ops/kiosk/install-kiosk.sh`（user、バックアップ、重複追加なし、uninstall）、supervisorのkiosk用フラグ（keyringプロンプト・スワイプ戻り防止。sandbox/TLSは既定のまま）、web unitに`HOSTNAME=127.0.0.1`固定。手順は[PI_INSTALL](PI_INSTALL.md)。
+
+Pi上の結果：`npm run check` **87件合格**（ops 8件追加：kiosk installerを一時HOMEでapply/冪等/uninstall、GUI外での起動拒否、危険フラグなし、unitの非root・hardening・network-online非依存、installerのapply拒否）。読取専用にしたdistのコピーからgoogleモードのWeb（`/`・ready・version・events・静的JS すべて200、書込みエラーなし）とWorker `--once`を起動確認。installer dry runの全手順を出力確認。
+
+未検証：sudo適用、systemd上での起動、kiosk表示、ネットあり/なし再起動、ブラウザ終了復帰、タッチ。
+
+### 実機適用（2026-10-09、ユーザー承認済み）
+
+開発Worker/Webを停止後、`sudo bash ops/install/install-production.sh --import-dev-state .local/dev --apply` を実行（release `20261009074142-e2665a51ed84`）。初回は`next build`が`next-env.d.ts`を書き換えたためinstallerが未commitとして拒否 → Next公式の推奨どおりGit管理から外し、`typecheck`で`next typegen`を先に実行するよう修正して再実行。
+
+結果：ready（google/sqlite/googleConfigured=true）、両サービスactive、Worker初回で5カレンダー・20件の月取得がすべてok（約3.2秒）、`sudo pi-calendar status` auth=ok、state=fresh。`/var/lib/pi-calendar`とsecretsは calendar-app の0700/0600。`bash ops/kiosk/install-kiosk.sh --apply` 後にsupervisorを起動し、専用プロファイルのChromiumが起動。Chromiumをkill → supervisorが再起動。web/syncをSIGKILL → systemdが7秒以内に再起動、Workerは死んだPIDのlockを置換して再開。画面の見た目は個人予定を含むためAIはスクリーンショットを取得していない（ユーザーが目視確認）。
+
+未検証：OS再起動（ネットあり/なし）での自動表示、タッチ、長時間稼働。
+
+## PR #7 レビュー修正（2026-10-10、M3 / T302）
+
+- P1：`.gitignore`の`next-env.d.ts`除外を削除し、Nextが生成したファイルを追跡対象に復帰。ビルド等で更新された場合は差分確認後にcommitする運用を`PI_INSTALL.md`へ明記。過去の実機適用記録にある追跡除外は当時の対応であり、今回取り消した。
+- P2：本番インストーラの事前確認を`git status --porcelain=v1 --untracked-files=all`へ変更。未stage・stage済み・未追跡の変更がある場合、システム変更前に`--apply`を拒否。Git状態を確認できない場合も拒否。Git除外済みのビルド出力は許容し、dry runは変更があっても警告付きで計画表示を維持。
+- 回帰テスト8件追加：変更3種類のapply拒否とdry run維持、Git検査失敗時の拒否、ignored dist付きのクリーンなdry run。実インストーラを一時Gitリポジトリとコマンドスタブで実行し、OSへの変更を防止。既存kioskテストもGUIユーザーのidをスタブにしてrootコンテナで実行可能にした（本番のroot拒否は変更なし）。
+
+検証環境：クラウドLinux x86_64、Node 24.19.0、npm 11.9.0。
+
+- `npm ci`：成功。
+- `npm run check`：lint・typecheck成功、unit/integration **95件合格**。
+- `npm run build`：成功。Next standaloneを`dist/web`へ配置し、Worker/CLIをbundle。
+- `bash -n ops/install/install-production.sh`、`git diff --check`：成功。
+
+初回テストは既存kioskのroot実行拒否と新規dry run fixtureのunit不足で失敗し、テスト環境を修正後に全件再実行して成功。
+未実施：UI/e2e/runtime、Pi Linux arm64での再ビルド、本番インストール、systemd/kiosk・ネットあり/なし再起動。今回のテストは事前確認とdry runの検証であり、Pi実機試験の代替ではない。
+次の最小確認：Piでcommitを取得し、check/build後にワークツリーのクリーン状態を確認してdry run。実適用・OS再起動は変更内容を示したうえで承認後に行う。
