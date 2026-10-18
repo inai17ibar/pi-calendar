@@ -1,4 +1,6 @@
-import {test,expect} from '@playwright/test';
+import {test,expect,type Page} from '@playwright/test';
+// SSR markup is clickable before hydration on slow hosts (Pi); the client fetch filling today's cell proves React is live.
+const ready=(page:Page)=>expect(page.getByRole('button',{name:/^2026-10-03 /})).not.toContainText('未取得');
 test('month, day, navigation, details and empty day',async({page},info)=>{
  const errors:string[]=[];page.on('pageerror',e=>errors.push(e.message));
  await page.goto('/');
@@ -98,7 +100,7 @@ test('week timeline crosses months, separates all-day and midnight, and supports
 test('cross-month copies are deduplicated and failed new weeks stay unacquired',async({page})=>{
  const event={id:'boundary',calendarId:'test',calendarName:'合成',title:'跨月の合成予定',color:'#1a73e8',kind:'allDay',start:'2026-09-30',end:'2026-10-02'};
  await page.route('**/api/events?*',route=>route.fulfill({json:{events:[event],complete:true,fetchedAt:'2026-10-03T05:20:00Z',state:'fresh',synthetic:true}}));
- await page.goto('/');await page.getByRole('button',{name:'週',exact:true}).click();
+ await page.goto('/');await ready(page);await page.getByRole('button',{name:'週',exact:true}).click();
  await expect(page.locator('.all-day-event')).toHaveCount(2);
  await expect(page.locator('.all-day-event').first()).toContainText('→');
  await expect(page.locator('.all-day-event').last()).toContainText('←');
@@ -111,7 +113,7 @@ test('cross-month copies are deduplicated and failed new weeks stay unacquired',
 
 test('Sunday defaults migrate saved settings and allow subsequent Monday choice',async({page})=>{
  await page.addInitScript(()=>{if(!localStorage.getItem('pi-calendar-preferences'))localStorage.setItem('pi-calendar-preferences',JSON.stringify({theme:'light',weekStart:1,scale:'normal',startupView:'month'}));});
- await page.goto('/');await expect(page.locator('.weekdays span').first()).toHaveText('日');
+ await page.goto('/');await ready(page);await expect(page.locator('.weekdays span').first()).toHaveText('日');
  await expect(page.locator('.day-cell').first()).toHaveAttribute('aria-label',/^2026-09-27/);
  await page.getByRole('button',{name:'週',exact:true}).click();
  await expect(page.getByRole('heading',{name:'2026年 9月27日 – 10月3日'})).toBeVisible();
@@ -150,6 +152,8 @@ test('event content scrolls with wheel, mouse drag and touch without opening det
  await client.send('Input.dispatchTouchEvent',{type:'touchMove',touchPoints:[{x:card.x+50,y:card.y+10}]});
  await client.send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});
  await expect.poll(()=>list.evaluate(el=>el.scrollTop)).toBeGreaterThan(0);await expect(page.getByRole('dialog')).toHaveCount(0);
+ // A tap during the touch fling only stops the fling in Chromium, so wait for scrolling to settle.
+ await expect.poll(async()=>{const top=await list.evaluate(el=>el.scrollTop);await page.waitForTimeout(200);return top===await list.evaluate(el=>el.scrollTop);}).toBe(true);
  await page.getByRole('button',{name:'設定',exact:true}).tap();await page.getByLabel('テーマ').selectOption('dark');await page.getByRole('button',{name:'設定を閉じる'}).tap();
  await expect(page.locator('.calendar-app')).toHaveClass(/dark/);await page.screenshot({path:`test-results/features-dark-${info.project.name}.png`,fullPage:true});
 });
