@@ -33,7 +33,7 @@ test('preferences, missing state and failure retain cached samples',async({page}
  await page.getByRole('button',{name:'設定',exact:true}).click();
  await page.getByLabel('テーマ').selectOption('dark');
  await page.getByLabel('文字サイズ').selectOption('large');
- await page.getByLabel('週の始まり').selectOption('0');
+ await page.getByLabel('週の始まり').selectOption('1');
  await page.getByLabel('デモの取得状態').selectOption('not_configured');
  await page.getByRole('button',{name:'設定を閉じる'}).click();
  await expect(page.getByText('この日の予定は未取得です')).toBeVisible();
@@ -59,6 +59,8 @@ test('week timeline crosses months, separates all-day and midnight, and supports
  await page.goto('/');await expect(page.locator('.event-card')).toHaveCount(5);
  const requests:string[]=[];page.on('request',r=>{if(r.url().includes('/api/events?'))requests.push(r.url());});
  await page.getByRole('button',{name:'週',exact:true}).click();
+ await expect(page.getByRole('heading',{name:'2026年 9月27日 – 10月3日'})).toBeVisible();
+ await page.getByRole('button',{name:'設定',exact:true}).click();await page.getByLabel('週の始まり').selectOption('1');await page.getByRole('button',{name:'設定を閉じる'}).click();
  await expect(page.getByRole('heading',{name:'2026年 9月28日 – 10月4日'})).toBeVisible();
  await expect(page.locator('.all-day-event')).toHaveCount(1);
  await expect(page.locator('.week-event').filter({hasText:'日付跨ぎ'})).toHaveCount(2);

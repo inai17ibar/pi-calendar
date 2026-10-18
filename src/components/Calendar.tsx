@@ -4,7 +4,7 @@ import { DateTime } from 'luxon';
 import WeekCalendar from './WeekCalendar';
 import { dateInZone, eventPhase, eventsForDay, mergeSnapshots, monthDays, weekDays, withinNavigationLimit, type CalendarEvent, type Snapshot, type SyncState } from '../domain/calendar';
 type Preferences = { theme:'light'|'dark'; scale:'normal'|'large'; weekStart:0|1; startupView:'month'|'week'|'day' };
-const defaults: Preferences = {theme:'light',scale:'normal',weekStart:1,startupView:'month'};
+const defaults: Preferences = {theme:'light',scale:'normal',weekStart:0,startupView:'month'};
 const states: Record<SyncState,string> = {fresh:'接続済み',syncing:'同期中',stale:'取得情報が古くなっています',offline:'オフライン · 保存済みのサンプルを表示',auth_required:'再認証が必要 · 保存済みのサンプルを表示',partial_error:'一部のカレンダーを取得できません',not_configured:'未取得 · データを準備してください'};
 const fmt = (day:string, pattern:string) => DateTime.fromISO(day).setLocale('ja').toFormat(pattern);
 const liveStates: Record<SyncState,string> = {...states,offline:'オフライン · 保存済みの予定を表示',auth_required:'再認証が必要 · 保存済みの予定を表示',not_configured:'Google未接続 · 認証してください',syncing:'取得中'};
@@ -132,7 +132,7 @@ export default function Calendar({initialNow,fixedClock,timezone,mode='mock'}:{i
    <div className="dialog-heading"><h2 id="settings-title">表示の設定</h2><button aria-label="設定を閉じる" onClick={()=>setSettings(false)}>✕</button></div>
    <label>テーマ<select value={prefs.theme} onChange={e=>save({...prefs,theme:e.target.value as Preferences['theme']})}><option value="light">明るい</option><option value="dark">暗い</option></select></label>
    <label>文字サイズ<select value={prefs.scale} onChange={e=>save({...prefs,scale:e.target.value as Preferences['scale']})}><option value="normal">標準</option><option value="large">大きい</option></select></label>
-   <label>週の始まり<select value={prefs.weekStart} onChange={e=>save({...prefs,weekStart:Number(e.target.value) as 0|1})}><option value={1}>月曜日</option><option value={0}>日曜日</option></select></label>
+   <label>週の始まり<select value={prefs.weekStart} onChange={e=>save({...prefs,weekStart:Number(e.target.value) as 0|1})}><option value={0}>日曜日</option><option value={1}>月曜日</option></select></label>
    <label>起動時の表示<select value={prefs.startupView} onChange={e=>save({...prefs,startupView:e.target.value as Preferences['startupView']})}><option value="month">月</option><option value="week">週</option><option value="day">日</option></select></label>
    {!live&&<label>デモの取得状態<select value={scenario} onChange={e=>setScenario(e.target.value as SyncState)}>{Object.entries(states).map(([s,label])=><option key={s} value={s}>{label}</option>)}</select></label>}
    <p className="dialog-note">{live?'表示設定はこのブラウザに保存します。Google認証と表示カレンダーの選択はPiのCLIで行います。':'表示設定はこのブラウザに保存します。取得状態の切替はデモ専用です。Google認証やOS設定は行いません。'}</p>
