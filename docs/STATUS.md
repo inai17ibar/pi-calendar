@@ -150,3 +150,5 @@ Pi上の結果：`npm run check` **87件合格**（ops 8件追加：kiosk instal
 次の確認：Macなど正常な環境で npm ci、npm run check、npm run build、npm run test:e2e、npm run test:runtime を実行。PlaywrightのChromiumが必要。Pi実機タッチは別途確認する。元環境が戻ったら、再構成版と未commit変更を比較してからローカル履歴を整理する。
 
 2026-10-11 Mac（Darwin arm64、Node 26）で検証：再構成版単体で check 46件・e2e 32件合格。runtime 2件は週の始まり・サーバー時刻に依存するテスト側の問題を修正して合格。mainをmergeし、`refresh` はmockの更新表示とgoogleモードの `/api/sync/request` を統合、フッターの「再取得」は上部の「予定を更新」へ置換。merge後に check 86件、build、e2e 32件、runtime 2件合格。Pi実機タッチは未確認。
+
+2026-10-18 Pi（Linux arm64、system Chromium 154、`PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/usr/bin/chromium`）でe2e 32件中10件が失敗。原因はテスト側：devサーバーが遅くhydration前のSSRボタンを押していた（跨月・日曜移行）、touch fling中のtapはChromiumでfling停止扱いになりクリックされない（スクロール）。今日のセル取得完了とスクロール停止を待つよう修正し、e2e 32件を2回連続合格、check 102件合格。
