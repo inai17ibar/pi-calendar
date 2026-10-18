@@ -4,7 +4,7 @@
     "timezone": "Asia/Tokyo",
     "locale": "ja-JP",
     "startupView": "month",
-    "weekStartsOn": 1,
+    "weekStartsOn": 0,
     "textScale": 1.0,
     "theme": "light",
     "returnToTodayAfterSeconds": 0
