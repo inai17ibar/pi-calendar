@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { execFileSync, spawnSync } from 'node:child_process';
+import { execFileSync, spawn, spawnSync } from 'node:child_process';
 import { chmodSync, copyFileSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
@@ -9,6 +9,7 @@ const kiosk = join(root, 'ops/kiosk/install-kiosk.sh');
 let home: string;
 // Hermetic env: temp HOME, no GUI session variables from the developer's desktop.
 const env = () => ({ PATH: `${join(home, 'host-bin')}:${process.env.PATH ?? '/usr/bin:/bin'}`, HOME: home }) as unknown as NodeJS.ProcessEnv;
+const entries = () => [join(home, '.local/share/applications/pi-calendar.desktop'), join(home, 'Desktop/pi-calendar.desktop')];
 const runKiosk = (...args: string[]) => execFileSync('bash', [kiosk, ...args], { env: env(), encoding: 'utf8' });
 beforeEach(() => {
  home = mkdtempSync(join(tmpdir(), 'pi-cal-home-'));
@@ -26,6 +27,7 @@ describe('kiosk installer', () => {
   expect(out).toContain('DRY RUN');
   expect(existsSync(join(home, '.local/bin/pi-calendar-kiosk'))).toBe(false);
   expect(existsSync(join(home, '.config/labwc/autostart'))).toBe(false);
+  for (const entry of entries()) expect(existsSync(entry)).toBe(false);
  });
  it('appends once, keeps existing autostart lines with a backup, and uninstalls cleanly', () => {
   mkdirSync(join(home, '.config/labwc'), { recursive: true });
@@ -37,15 +39,37 @@ describe('kiosk installer', () => {
   expect(lines).toEqual(['existing-app &', '"$HOME/.local/bin/pi-calendar-kiosk" &']);
   expect(statSync(join(home, '.local/bin/pi-calendar-kiosk')).mode & 0o111).toBeTruthy();
   expect(readdirSync(join(home, '.config/labwc')).filter(f => f.startsWith('autostart.bak.')).length).toBeGreaterThan(0);
+  for (const entry of entries()) {
+   expect(readFileSync(entry, 'utf8')).toContain(`Exec=${join(home, '.local/bin/pi-calendar-kiosk')}\n`);
+   expect(statSync(entry).mode & 0o111).toBeTruthy();
+  }
   runKiosk('--uninstall', '--apply');
   expect(readFileSync(autostart, 'utf8')).toBe('existing-app &\n');
   expect(existsSync(join(home, '.local/bin/pi-calendar-kiosk'))).toBe(false);
+  for (const entry of entries()) expect(existsSync(entry)).toBe(false);
  });
  it('supervisor refuses to start outside a graphical session', () => {
   const r = spawnSync('bash', [join(root, 'ops/kiosk/kiosk-supervisor.sh')], { env: env(), encoding: 'utf8' });
   expect(r.status).toBe(1);
   expect(r.stderr).toContain('graphical session');
  });
+ it.skipIf(spawnSync('sh', ['-c', 'command -v flock']).status !== 0)('supervisor ignores stale desktop requests and exits on a new one, closing Chromium', async () => {
+  // Fake Chromium and curl: health is ready; /api/kiosk/exit serves the epoch in requested-at.
+  const bin = join(home, 'host-bin');
+  writeFileSync(join(bin, 'chromium'), `#!/bin/sh\necho $$ > "${home}/chromium.pid"\nexec sleep 60\n`);
+  writeFileSync(join(bin, 'curl'), `#!/bin/sh\ncase "$*" in *kiosk/exit*) printf '{"requestedAt":%s}' "$(cat "${home}/requested-at")";; esac\n`);
+  for (const f of ['chromium', 'curl']) chmodSync(join(bin, f), 0o755);
+  writeFileSync(join(home, 'requested-at'), '1');
+  const child = spawn('bash', [join(root, 'ops/kiosk/kiosk-supervisor.sh')], { env: { ...env(), WAYLAND_DISPLAY: 'wayland-test', XDG_RUNTIME_DIR: home } });
+  const exited = new Promise<number | null>(done => child.on('exit', done));
+  const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
+  await sleep(5000);
+  expect(child.exitCode).toBeNull();
+  const pid = Number(readFileSync(join(home, 'chromium.pid'), 'utf8'));
+  writeFileSync(join(home, 'requested-at'), String(Math.floor(Date.now() / 1000)));
+  expect(await exited).toBe(0);
+  expect(() => process.kill(pid, 0)).toThrow();
+ }, 20000);
  it('supervisor keeps Chromium security defaults', () => {
   const s = readFileSync(join(root, 'ops/kiosk/kiosk-supervisor.sh'), 'utf8');
   for (const flag of ['--no-sandbox', '--ignore-certificate-errors', '--disable-web-security']) expect(s).not.toContain(flag);

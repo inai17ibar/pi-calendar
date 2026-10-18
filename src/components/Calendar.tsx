@@ -29,6 +29,7 @@ export default function Calendar({initialNow,fixedClock,timezone,mode='mock'}:{i
  const [retry,setRetry] = useState(0);
  const [updating,setUpdating] = useState(false);
  const [updateMessage,setUpdateMessage] = useState('');
+ const [desktopMessage,setDesktopMessage] = useState('');
  const [followingToday,setFollowingToday] = useState(true);
  const previousToday = useRef(today);
  const settingsDialog = useRef<HTMLDialogElement>(null);
@@ -82,6 +83,8 @@ export default function Calendar({initialNow,fixedClock,timezone,mode='mock'}:{i
  const weekdays=prefs.weekStart===1 ? ['月','火','水','木','金','土','日'] : ['日','月','火','水','木','金','土'];
  function save(p:Preferences){setPrefs(p);try{localStorage.setItem('pi-calendar-preferences',JSON.stringify(p));}catch{ /* Private-mode storage may be unavailable. */ }}
  function refresh(){if(updating)return;setUpdating(true);setUpdateMessage('');if(live)void postJson('/api/sync/request',{}).then(()=>setTimeout(()=>setRetry(v=>v+1),3000));setRetry(v=>v+1);}
+ // The kiosk supervisor (ops/kiosk) polls this request and closes its own Chromium; a plain browser just shows the message.
+ function showDesktop(){setDesktopMessage('デスクトップに切り替えています…');void postJson('/api/kiosk/exit',{}).then(r=>{if(!r?.ok)setDesktopMessage('切り替えられませんでした。もう一度お試しください。');});}
  function goToday(){setSelected(today);setMonth(today.slice(0,7));setFollowingToday(true);}
  // Live mode only fetches within ±12 months; keep navigation inside that range instead of showing 取得中 forever.
  const inRange=(m:string)=>!live||withinNavigationLimit(m,clock,timezone);
@@ -137,6 +140,7 @@ export default function Calendar({initialNow,fixedClock,timezone,mode='mock'}:{i
    <label>週の始まり<select value={prefs.weekStart} onChange={e=>save({...prefs,weekStart:Number(e.target.value) as 0|1})}><option value={0}>日曜日</option><option value={1}>月曜日</option></select></label>
    <label>起動時の表示<select value={prefs.startupView} onChange={e=>save({...prefs,startupView:e.target.value as Preferences['startupView']})}><option value="month">月</option><option value="week">週</option><option value="day">日</option></select></label>
    {!live&&<label>デモの取得状態<select value={scenario} onChange={e=>setScenario(e.target.value as SyncState)}>{Object.entries(states).map(([s,label])=><option key={s} value={s}>{label}</option>)}</select></label>}
+   <div className="desktop-row"><button className="desktop-button" onClick={showDesktop}>デスクトップを表示</button><p className="dialog-note" aria-live="polite">{desktopMessage||'全画面のカレンダーを閉じます。戻るときはデスクトップの「カレンダー」アイコンをダブルタップします。'}</p></div>
    <p className="dialog-note">{live?'表示設定はこのブラウザに保存します。Google認証と表示カレンダーの選択はPiのCLIで行います。':'表示設定はこのブラウザに保存します。取得状態の切替はデモ専用です。Google認証やOS設定は行いません。'}</p>
   </dialog>
   <dialog ref={detailDialog} onCancel={()=>setDetail(null)} onClose={()=>setDetail(null)} aria-labelledby="detail-title">

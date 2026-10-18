@@ -40,6 +40,18 @@ rootサービスからDISPLAY=:0を決め打ちしてChromiumを起動しない�
 Chromiumが終了したら再起動、二重起動をlockで防止、localhostが起動するまで待つ。
 ログはjournaldまたは回転上限付きにし、ブラウザdebugログを無制限に保存しない。
 
+## デスクトップへの切替
+
+設定ダイアログの「デスクトップを表示」は `POST /api/kiosk/exit`（Host/Origin/JSON検査あり）で要求時刻を記録するだけ。
+Webはシェル実行やプロセス操作をしない。GUIユーザーのsupervisorが2秒ごとに `GET /api/kiosk/exit` を見て、
+自分のChromium起動後の要求なら専用Chromiumを閉じて終了する。他のChromiumには触れない。
+要求時刻はWebのメモリにだけ持ち、Web再起動で消える。
+
+戻すときはデスクトップまたはメニューの「カレンダー」（`pi-calendar.desktop`、Exec=supervisor）を起動する。
+`install-kiosk.sh --apply` が `~/.local/share/applications` とデスクトップフォルダへ置き、`--uninstall` で消す。
+デスクトップのアイコンはpcmanfmの設定どおりダブルタップで起動する。lockにより二重起動しない。
+maintenanceファイルがある間はアイコンからも起動しない。
+
 ## 保守モード
 
 参考supervisorは次のファイルの存在で終了する。

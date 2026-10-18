@@ -1,9 +1,11 @@
 #!/usr/bin/env bash
 # Kiosk supervisor: waits for the local web, runs Chromium full screen, restarts it if it exits.
+# The calendar's 「デスクトップを表示」 button ends it; the desktop/menu launcher starts it again.
 # Installed by ops/kiosk/install-kiosk.sh. Does not modify desktop settings. Do not run as root.
 set -eu
 if [ "${1:-}" = '--help' ]; then
   printf 'Run in the GUI user session. Maintenance file: ~/.config/pi-calendar/maintenance\n'
+  printf 'Exits (closing its Chromium) when the calendar requests the desktop via /api/kiosk/exit.\n'
   exit 0
 fi
 if [ "$(id -u)" -eq 0 ]; then printf 'Refusing to run Chromium as root.\n' >&2; exit 1; fi
@@ -46,11 +48,15 @@ until [ -e "$maintenance" ]; do
     sleep 2
   done
   [ ! -e "$maintenance" ] || exit 0
+  started=$(date +%s)
   "$browser" "${args[@]}" "$url" &
   child=$!
   while kill -0 "$child" 2>/dev/null; do
     [ ! -e "$maintenance" ] || exit 0
     sleep 2
+    # A desktop request made after this Chromium started ends the supervisor; the EXIT trap closes Chromium.
+    requested=$(curl --fail --silent --max-time 2 "$url/api/kiosk/exit" 2>/dev/null | sed -n 's/.*"requestedAt":\([0-9][0-9]*\).*/\1/p') || requested=''
+    if [ -n "$requested" ] && [ "$requested" -ge "$started" ]; then exit 0; fi
   done
   wait "$child" || true
   child=''

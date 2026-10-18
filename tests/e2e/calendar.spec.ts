@@ -157,3 +157,17 @@ test('event content scrolls with wheel, mouse drag and touch without opening det
  await page.getByRole('button',{name:'設定',exact:true}).tap();await page.getByLabel('テーマ').selectOption('dark');await page.getByRole('button',{name:'設定を閉じる'}).tap();
  await expect(page.locator('.calendar-app')).toHaveClass(/dark/);await page.screenshot({path:`test-results/features-dark-${info.project.name}.png`,fullPage:true});
 });
+
+test('settings can ask the kiosk supervisor to show the desktop',async({page})=>{
+ await page.goto('/');await ready(page);
+ await page.getByRole('button',{name:'設定',exact:true}).click();
+ await expect(page.getByText('戻るときはデスクトップの「カレンダー」アイコンをダブルタップします。')).toBeVisible();
+ const t=Math.floor(Date.now()/1000);
+ const posted=page.waitForResponse(r=>r.url().endsWith('/api/kiosk/exit')&&r.request().method()==='POST');
+ await page.getByRole('button',{name:'デスクトップを表示',exact:true}).click();
+ await expect(page.getByText('デスクトップに切り替えています…')).toBeVisible();expect((await posted).ok()).toBe(true);
+ expect((await (await page.request.get('/api/kiosk/exit')).json()).requestedAt).toBeGreaterThanOrEqual(t);
+ await page.route('**/api/kiosk/exit',route=>route.abort());
+ await page.getByRole('button',{name:'デスクトップを表示',exact:true}).click();
+ await expect(page.getByText('切り替えられませんでした。もう一度お試しください。')).toBeVisible();
+});
