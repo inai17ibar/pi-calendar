@@ -152,3 +152,11 @@ Pi上の結果：`npm run check` **87件合格**（ops 8件追加：kiosk instal
 2026-10-11 Mac（Darwin arm64、Node 26）で検証：再構成版単体で check 46件・e2e 32件合格。runtime 2件は週の始まり・サーバー時刻に依存するテスト側の問題を修正して合格。mainをmergeし、`refresh` はmockの更新表示とgoogleモードの `/api/sync/request` を統合、フッターの「再取得」は上部の「予定を更新」へ置換。merge後に check 86件、build、e2e 32件、runtime 2件合格。Pi実機タッチは未確認。
 
 2026-10-18 Pi（Linux arm64、system Chromium 154、`PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/usr/bin/chromium`）でe2e 32件中10件が失敗。原因はテスト側：devサーバーが遅くhydration前のSSRボタンを押していた（跨月・日曜移行）、touch fling中のtapはChromiumでfling停止扱いになりクリックされない（スクロール）。今日のセル取得完了とスクロール停止を待つよう修正し、e2e 32件を2回連続合格、check 102件合格。
+
+## キオスクのデスクトップ切替（2026-10-18）
+
+- 設定ダイアログに「デスクトップを表示」：`/api/kiosk/exit` へ要求を記録し、supervisorが検知して専用Chromiumを閉じて終了。
+- `install-kiosk.sh` がメニューとデスクトップに「カレンダー」ランチャー（`pi-calendar.desktop`）を配置し、全画面へ戻れる。
+- 変更：src/server/api.ts、src/app/api/kiosk/exit/route.ts、src/components/Calendar.tsx、src/app/globals.css、ops/kiosk/（supervisor・installer・desktop.in）、docs/05_PI_KIOSK.md。
+- Pi（Linux arm64、system Chromium）で check 104件、e2e 36件（2回連続）、build 合格。supervisorの終了はfake Chromium/curlの統合テストで確認。
+- 未確認：実機キオスクでのボタン操作とデスクトップアイコンのダブルタップ起動（本番への反映とinstall-kiosk --applyが必要）。

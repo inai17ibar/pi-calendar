@@ -1,5 +1,5 @@
 import {it,expect,afterEach,vi} from 'vitest';
-import {apiResponse} from '../../src/server/api';
+import {apiPost,apiResponse} from '../../src/server/api';
 import {loadConfig} from '../../src/server/config';
 import {MockCalendarProvider,MemorySnapshotRepository} from '../../src/server/mock';
 const clock={now:()=>new Date('2026-10-03T14:20:00+09:00')};
@@ -14,3 +14,12 @@ it.each(['2026-13','2026-02-30','../../','2026-1'])('rejects invalid request %s'
 it('rejects hostile host',()=>expect(apiResponse(new Request('http://example.com/api/events?month=2026-10'),'events').status).toBe(403));
 it.each(['health/live','health/ready','version'])('%s is local and no-store',path=>{const res=apiResponse(new Request(`http://127.0.0.1:3100/api/${path}`),path);expect(res.status).toBe(200);expect(res.headers.get('Cache-Control')).toBe('no-store');});
 it('bad config returns safe error without echoing values',async()=>{vi.stubEnv('CALENDAR_TIMEZONE','invalid-secret-like-value');const res=apiResponse(new Request('http://localhost:3100/api/health/ready'),'health/ready');expect(res.status).toBe(503);expect(await res.text()).not.toContain('invalid-secret-like-value');});
+it('kiosk desktop request is recorded in mock mode and requires a local origin',async()=>{
+ vi.stubEnv('CALENDAR_ALLOWED_ORIGINS','http://127.0.0.1:3100');
+ const post=(origin:string)=>apiPost(new Request('http://127.0.0.1:3100/api/kiosk/exit',{method:'POST',headers:{origin,'content-type':'application/json'},body:'{}'}),'kiosk/exit');
+ const read=async()=>(await apiResponse(new Request('http://127.0.0.1:3100/api/kiosk/exit'),'kiosk/exit').json()).requestedAt as number|null;
+ const before=await read();
+ expect((await post('http://evil.example')).status).toBe(403);expect(await read()).toBe(before);
+ const t=Math.floor(Date.now()/1000);const res=await post('http://127.0.0.1:3100');
+ expect(res.status).toBe(200);expect(res.headers.get('Cache-Control')).toBe('no-store');expect(await read()).toBeGreaterThanOrEqual(t);
+});

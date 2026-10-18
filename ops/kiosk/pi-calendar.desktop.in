@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Calendar
+Name[ja]=カレンダー
+Comment=Open Pi Calendar full screen
+Comment[ja]=カレンダーを全画面で開きます
+Exec=@KIOSK_BIN@
+Icon=x-office-calendar
+Terminal=false
+Categories=Utility;

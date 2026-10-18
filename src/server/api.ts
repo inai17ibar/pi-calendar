@@ -8,6 +8,8 @@ const headers = { 'Cache-Control':'no-store' };
 const STALE_AFTER_MS = 5 * 60_000, WORKER_DEAD_MS = 2 * 60_000, INTEREST_TTL_MS = 24 * 3600_000;
 
 let cached: { dir: string; store: CalendarStore } | null = null;
+// Wall-clock epoch seconds of the last "show desktop" tap; the kiosk supervisor polls it. Lost on restart by design.
+let kioskExitRequestedAt: number | null = null;
 function store(config: AppConfig) {
  if (cached?.dir !== config.stateDir) { cached?.store.close(); cached = { dir: config.stateDir, store: CalendarStore.open(config.stateDir) }; }
  return cached.store;
@@ -48,6 +50,7 @@ export function apiResponse(request: Request, path: string): Response {
    const s = store(config);
    return Response.json({status:'ok',mode:'google',storage:'sqlite',schemaVersion:s.schemaVersion(),googleConfigured:new FileTokenStore(config.stateDir).version() > 0}, { headers });
   }
+  if (path === 'kiosk/exit') return Response.json({requestedAt:kioskExitRequestedAt}, { headers });
   if (path === 'version') return Response.json({releaseId:google?'m2-google':'m1-mock',commit:null,builtAt:null,schemaVersion:SCHEMA_VERSION}, { headers });
   if (path === 'status') {
    if (!google) return Response.json({mode:'mock'}, { headers });
@@ -74,6 +77,8 @@ export async function apiPost(request: Request, path: string): Promise<Response>
  if (!config.allowedOrigins.includes(request.headers.get('origin') ?? '')) return Response.json({error:'Forbidden origin'}, { status:403,headers });
  if (!/^application\/json(;|$)/.test(request.headers.get('content-type') ?? '')) return Response.json({error:'JSON required'}, { status:415,headers });
  const body = await request.json().catch(() => null) as Record<string, unknown> | null;
+ // Works in mock mode too: it only asks the GUI user's supervisor to close its own Chromium.
+ if (path === 'kiosk/exit') { kioskExitRequestedAt = Math.floor(Date.now() / 1000); return Response.json({accepted:true}, { headers }); }
  if (config.mode !== 'google') return Response.json({accepted:false,mode:'mock'}, { headers });
  const clock = configuredClock(config.clock);
  try {
