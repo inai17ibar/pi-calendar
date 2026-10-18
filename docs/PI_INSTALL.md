@@ -31,6 +31,8 @@ bash ops/kiosk/install-kiosk.sh --apply
 ~/.local/bin/pi-calendar-kiosk &           # 再ログインせず今すぐ起動する場合
 ```
 
+更新時に`--apply`を再実行すると、GUIセッションで動作中のsupervisorを止めて新しいスクリプトで起動し直します（画面も新しい版を読み直す）。SSHなどGUI外から実行した場合は再起動せず、再ログインを案内します。
+
 `~/.config/labwc/autostart`に1行追加します（既存行は残し、バックアップを作成）。このPiのlabwcは`-m`（設定マージ）で起動しているため、システムのパネル等の自動起動は維持されます。Chromiumは専用プロファイル・`--kiosk`で起動し、終了しても自動で再起動します。sandbox/TLS検証は無効化しません。
 
 ## 運用

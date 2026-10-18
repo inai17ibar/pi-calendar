@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Install the kiosk supervisor for the current GUI user (no sudo). Dry run by default; --apply to change files.
 #   bash ops/kiosk/install-kiosk.sh            # show the plan
-#   bash ops/kiosk/install-kiosk.sh --apply    # install, then log out/in or reboot to start
+#   bash ops/kiosk/install-kiosk.sh --apply    # install; restarts a running kiosk, otherwise log out/in or reboot to start
 #   bash ops/kiosk/install-kiosk.sh --uninstall --apply
 set -euo pipefail
 apply=0; uninstall=0
@@ -41,6 +41,24 @@ for entry in "${entries[@]}"; do
   # Executable so the desktop file manager runs it as a trusted launcher.
   if [ "$apply" -eq 1 ]; then sed "s#@KIOSK_BIN@#$bin#" "$entry_src" > "$entry"; chmod 0755 "$entry"; fi
 done
+# A running supervisor keeps executing the old script and its old Chromium page; restart it on the new one.
+lockdir="${XDG_RUNTIME_DIR:-$HOME/.cache/pi-calendar}"
+lock="$lockdir/pi-calendar-kiosk.lock"; pidfile="$lockdir/pi-calendar-kiosk.pid"
+if [ -e "$lock" ] && ! flock -n "$lock" true 2>/dev/null; then
+  pid=$(cat "$pidfile" 2>/dev/null || true)
+  if [ -z "$pid" ]; then
+    printf 'NOTE: a kiosk supervisor without a pid file is running (installed before restart support); log out/in or reboot to use the new one.\n'
+  elif [ -z "${WAYLAND_DISPLAY:-}" ] && [ -z "${DISPLAY:-}" ]; then
+    printf 'NOTE: the running kiosk (pid %s) keeps the old version; run this from the GUI session, or log out/in, to restart it.\n' "$pid"
+  else
+    printf '  + restart running kiosk supervisor (pid %s)\n' "$pid"
+    if [ "$apply" -eq 1 ]; then
+      kill -TERM "$pid"
+      flock -w 15 "$lock" true || { printf 'Old supervisor (pid %s) did not stop; restart it by logging out/in.\n' "$pid" >&2; exit 1; }
+      setsid -f "$bin" >/dev/null 2>&1 </dev/null
+    fi
+  fi
+fi
 if grep -qs swayidle "$autostart"; then printf 'NOTE: screen blanking (swayidle) is enabled in %s; disable it with raspi-config → Display → Screen Blanking for an always-on calendar.\n' "$autostart"; fi
 printf 'Start now without re-login: %s &   |   Maintenance: touch ~/.config/pi-calendar/maintenance\n' "$bin"
 printf 'After 「デスクトップを表示」, double-tap the 「カレンダー」 desktop icon (or the menu entry) to return.\n'

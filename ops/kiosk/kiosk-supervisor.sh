@@ -26,6 +26,8 @@ mkdir -p "$profile" "$lockdir"
 chmod 700 "$profile"
 exec 9>"$lockdir/pi-calendar-kiosk.lock"
 flock -n 9 || exit 0
+# Lets install-kiosk.sh restart this supervisor after replacing the script.
+echo "$$" > "$lockdir/pi-calendar-kiosk.pid"
 child=''
 cleanup() {
   if [ -n "$child" ] && kill -0 "$child" 2>/dev/null; then

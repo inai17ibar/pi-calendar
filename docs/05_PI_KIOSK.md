@@ -52,6 +52,9 @@ Webはシェル実行やプロセス操作をしない。GUIユーザーのsuper
 デスクトップのアイコンはpcmanfmの設定どおりダブルタップで起動する。lockにより二重起動しない。
 maintenanceファイルがある間はアイコンからも起動しない。
 
+supervisorはlock取得後に `$XDG_RUNTIME_DIR/pi-calendar-kiosk.pid` を書く。`install-kiosk.sh --apply` はlockが保持されていればそのpidへTERMを送り、
+lock解放（旧Chromium終了）を待ってから新しいsupervisorを `setsid -f` で起動する。GUI外の実行やpidファイルのない旧supervisorは再起動せず案内のみ。
+
 ## 保守モード
 
 参考supervisorは次のファイルの存在で終了する。
