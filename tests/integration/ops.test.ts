@@ -70,6 +70,48 @@ describe('kiosk installer', () => {
   expect(await exited).toBe(0);
   expect(() => process.kill(pid, 0)).toThrow();
  }, 20000);
+ it.skipIf(['flock', 'setsid'].some(c => spawnSync('sh', ['-c', `command -v ${c}`]).status !== 0))('apply restarts a running supervisor on the new script; dry run leaves it alone', async () => {
+  const bin = join(home, 'host-bin');
+  writeFileSync(join(bin, 'chromium'), '#!/bin/sh\nexec sleep 60\n');
+  writeFileSync(join(bin, 'curl'), '#!/bin/sh\ncase "$*" in *kiosk/exit*) printf \'{"requestedAt":1}\';; esac\n');
+  for (const f of ['chromium', 'curl']) chmodSync(join(bin, f), 0o755);
+  const gui = { ...env(), WAYLAND_DISPLAY: 'wayland-test', XDG_RUNTIME_DIR: home };
+  const kioskEnv = (...args: string[]) => execFileSync('bash', [kiosk, ...args], { env: gui, encoding: 'utf8' });
+  const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
+  const pidfile = join(home, 'pi-calendar-kiosk.pid');
+  const waitPid = async (not?: number) => {
+   for (let i = 0; i < 50; i++) {
+    const pid = existsSync(pidfile) ? Number(readFileSync(pidfile, 'utf8')) : 0;
+    if (pid && pid !== not) return pid;
+    await sleep(200);
+   }
+   throw new Error('supervisor did not write its pid');
+  };
+  // Supervisors handle TERM after their poll sleep; stop them before HOME is removed.
+  const stop = async (pid: number) => {
+   try { process.kill(pid, 'SIGTERM'); } catch { return; }
+   for (let i = 0; i < 50; i++) {
+    try { process.kill(pid, 0); } catch { return; }
+    await sleep(200);
+   }
+  };
+  kioskEnv('--apply');
+  const old = spawn(join(home, '.local/bin/pi-calendar-kiosk'), [], { env: gui });
+  const oldExited = new Promise<number | null>(done => old.on('exit', done));
+  let next = 0;
+  try {
+   expect(await waitPid()).toBe(old.pid);
+   expect(kioskEnv()).toContain(`restart running kiosk supervisor (pid ${old.pid})`);
+   expect(old.exitCode).toBeNull();
+   kioskEnv('--apply');
+   expect(await oldExited).toBe(0);
+   next = await waitPid(old.pid);
+   expect(() => process.kill(next, 0)).not.toThrow();
+  } finally {
+   await stop(old.pid!);
+   if (next) await stop(next);
+  }
+ }, 30000);
  it('supervisor keeps Chromium security defaults', () => {
   const s = readFileSync(join(root, 'ops/kiosk/kiosk-supervisor.sh'), 'utf8');
   for (const flag of ['--no-sandbox', '--ignore-certificate-errors', '--disable-web-security']) expect(s).not.toContain(flag);

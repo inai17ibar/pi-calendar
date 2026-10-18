@@ -160,3 +160,11 @@ Pi上の結果：`npm run check` **87件合格**（ops 8件追加：kiosk instal
 - 変更：src/server/api.ts、src/app/api/kiosk/exit/route.ts、src/components/Calendar.tsx、src/app/globals.css、ops/kiosk/（supervisor・installer・desktop.in）、docs/05_PI_KIOSK.md。
 - Pi（Linux arm64、system Chromium）で check 104件、e2e 36件（2回連続）、build 合格。supervisorの終了はfake Chromium/curlの統合テストで確認。
 - 未確認：実機キオスクでのボタン操作とデスクトップアイコンのダブルタップ起動（本番への反映とinstall-kiosk --applyが必要）。
+
+## kiosk更新時のsupervisor再起動（2026-10-18、ブランチ fix/kiosk-restart-supervisor）
+
+- 不具合：`f492144` のcommitメッセージは「installerがsupervisorを再起動する」としていたが未実装。本番反映後も旧supervisor（旧スクリプト・旧ページ）が動き続け、「デスクトップを表示」が効かなかった（手動でPID指定の再起動をして解消）。
+- 修正：supervisorがpidファイルを書き、`install-kiosk.sh --apply` がGUIセッションで動作中のsupervisorをTERM→lock解放待ち→`setsid -f`で再起動。dry runは計画表示のみ。
+- 変更：ops/kiosk/install-kiosk.sh、ops/kiosk/kiosk-supervisor.sh、tests/integration/ops.test.ts、docs/PI_INSTALL.md、docs/05_PI_KIOSK.md。
+- Pi上で check 105件合格。追加テスト（fake Chromium/curl で旧supervisor起動→dry runで不変→applyで旧が終了し新pidが稼働）は修正前のinstallerでは失敗することを確認。
+- 既知制約：今回より前に起動したsupervisorはpidファイルを持たないため、初回だけ手動再起動か再ログインが必要。
