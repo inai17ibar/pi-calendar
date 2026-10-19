@@ -34,6 +34,7 @@ npm run dev
 | CALENDAR_PORT | 3100。ループバック待受け固定 |
 | CALENDAR_STATE_DIR | .local/dev。開発state用、本番stateは拒否 |
 | CALENDAR_MOCK_NOW | 未設定なら現在時刻。固定デモならoffset付きISO日時 |
+| CALENDAR_HIDDEN_TITLES | 未設定なら全件表示。カンマ区切りのタイトルと完全一致する予定を画面に出さない（例：`赤口,先勝,友引,先負,仏滅,大安`）。キャッシュには残る |
 
 スターターの同期関連環境変数・systemd設定は将来の実装契約です。現在のWebにWorkerはありません。
 

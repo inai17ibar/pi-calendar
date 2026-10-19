@@ -1,6 +1,6 @@
 import { describe,it,expect } from 'vitest';
 import { DateTime } from 'luxon';
-import { mergeSnapshots,dayBounds,eventsForDay,monthDays,eventPhase,dateInZone,type CalendarEvent } from '../../src/domain/calendar';
+import { mergeSnapshots,dayBounds,eventsForDay,monthDays,eventPhase,dateInZone,withoutHiddenTitles,type CalendarEvent } from '../../src/domain/calendar';
 import {fixtureEvents} from '../../src/server/mock';
 import cases from '../../fixtures/cases.json';
 const zone='Asia/Tokyo';
@@ -54,4 +54,11 @@ describe('multi-month merge (week view)',()=>{
   expect(m.calendars![0].fetched).toBe(false);
  });
  it('missing fetch time in any month means unknown',()=>expect(mergeSnapshots([base,{...base,fetchedAt:null}]).fetchedAt).toBeNull());
+});
+
+it('hides only events whose whole title matches, ignoring surrounding spaces',()=>{
+ const base=events[0];
+ const hiddenCase=[{...base,id:'a',title:'赤口'},{...base,id:'b',title:' 先勝 '},{...base,id:'c',title:'赤口の打ち合わせ'}];
+ expect(withoutHiddenTitles(hiddenCase,['赤口','先勝']).map(e=>e.id)).toEqual(['c']);
+ expect(withoutHiddenTitles(hiddenCase,[])).toBe(hiddenCase);
 });

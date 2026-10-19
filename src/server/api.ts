@@ -1,7 +1,7 @@
 import { DateTime } from 'luxon';
 import { loadConfig, configuredClock, type AppConfig } from './config';
 import { MockCalendarProvider } from './mock';
-import { eventsForDay, withinNavigationLimit, type Clock, type Snapshot, type SyncState } from '../domain/calendar';
+import { eventsForDay, withinNavigationLimit, withoutHiddenTitles, type Clock, type Snapshot, type SyncState } from '../domain/calendar';
 import { CalendarStore, SCHEMA_VERSION } from './storage/db';
 import { FileTokenStore } from './auth/tokens';
 const headers = { 'Cache-Control':'no-store' };
@@ -62,6 +62,7 @@ export function apiResponse(request: Request, path: string): Response {
    const month = url.searchParams.get('month') ?? day?.slice(0,7);
    if (!validMonth(month) || day && (!/^\d{4}-\d{2}-\d{2}$/.test(day) || !DateTime.fromISO(day).isValid || day.slice(0,7)!==month)) return Response.json({error:'Use a valid month=YYYY-MM or date=YYYY-MM-DD'}, {status:400,headers});
    const snapshot = google ? googleMonth(store(config), month, config.timezone, clock) : new MockCalendarProvider().month(month,clock,config.timezone);
+   snapshot.events = withoutHiddenTitles(snapshot.events,config.hiddenTitles);
    if (day) snapshot.events = eventsForDay(snapshot.events,day,config.timezone);
    return Response.json(snapshot,{headers});
   }

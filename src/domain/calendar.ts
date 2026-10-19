@@ -32,6 +32,11 @@ export function overlapsDay(event: CalendarEvent, day: string, zone: string): bo
  const { start, end } = dayBounds(day, zone);
  return DateTime.fromISO(event.start).toMillis() < end.toMillis() && DateTime.fromISO(event.end).toMillis() > start.toMillis();
 }
+export function withoutHiddenTitles(events: CalendarEvent[], hiddenTitles: readonly string[]): CalendarEvent[] {
+ if (hiddenTitles.length === 0) return events;
+ const hidden = new Set(hiddenTitles);
+ return events.filter(e => !hidden.has(e.title.trim()));
+}
 export function eventsForDay(events: CalendarEvent[], day: string, zone: string): CalendarEvent[] {
  return events.filter(e => overlapsDay(e, day, zone)).sort((a,b) => {
   if (a.kind !== b.kind) return a.kind === 'allDay' ? -1 : 1;
