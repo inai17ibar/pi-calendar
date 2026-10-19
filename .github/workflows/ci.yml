@@ -1,0 +1,24 @@
+# lint・型チェック・ユニットテスト。main のブランチ保護でこの check を必須にし、
+# エージェントの PR はこれが通るまで自動マージされない。
+# e2e (Playwright) はブラウザとビルドが要るのでここでは走らせない。
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - run: npm run check
