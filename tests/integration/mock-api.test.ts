@@ -23,3 +23,5 @@ it('kiosk desktop request is recorded in mock mode and requires a local origin',
  const t=Math.floor(Date.now()/1000);const res=await post('http://127.0.0.1:3100');
  expect(res.status).toBe(200);expect(res.headers.get('Cache-Control')).toBe('no-store');expect(await read()).toBeGreaterThanOrEqual(t);
 });
+it('parses CALENDAR_HIDDEN_TITLES as trimmed comma-separated titles',()=>{expect(loadConfig({CALENDAR_HIDDEN_TITLES:' 赤口, 先勝 ,,友引'}).hiddenTitles).toEqual(['赤口','先勝','友引']);expect(loadConfig({}).hiddenTitles).toEqual([]);});
+it('events API leaves out hidden titles for month and day',async()=>{vi.stubEnv('CALENDAR_MOCK_NOW',clock.now().toISOString());vi.stubEnv('CALENDAR_HIDDEN_TITLES','ゆっくり朝ごはん');for(const q of ['month=2026-10','date=2026-10-03']){const body=await apiResponse(new Request(`http://localhost:3100/api/events?${q}`),'events').json();expect(body.events.length).toBeGreaterThan(0);expect(body.events.some((e:{title:string})=>e.title==='ゆっくり朝ごはん')).toBe(false);}});

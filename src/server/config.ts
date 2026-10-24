@@ -9,13 +9,16 @@ const schema = z.object({
  stateDir: z.string().min(1),
  port: z.string().regex(/^\d{1,5}$/),
  allowedOrigins: z.array(z.string().regex(/^http:\/\/(127\.0\.0\.1|localhost):\d{1,5}$/)),
+ hiddenTitles: z.array(z.string().max(200)).max(100),
 });
 export type AppConfig = z.infer<typeof schema>;
 export function loadConfig(env: Readonly<Record<string, string | undefined>> = process.env): AppConfig {
  const port = env.CALENDAR_PORT || env.PORT || '3100';
  const origins = env.CALENDAR_ALLOWED_ORIGINS ? env.CALENDAR_ALLOWED_ORIGINS.split(',').map(v => v.trim()).filter(Boolean) : [`http://127.0.0.1:${port}`,`http://localhost:${port}`];
- const result = schema.safeParse({mode:env.CALENDAR_MODE ?? 'mock',timezone:env.CALENDAR_TIMEZONE ?? 'Asia/Tokyo',clock:env.CALENDAR_MOCK_NOW || undefined,stateDir:resolve(env.CALENDAR_STATE_DIR ?? '.local/dev'),port,allowedOrigins:origins});
- if (!result.success) throw new Error('Invalid calendar configuration: check CALENDAR_MODE (mock|google), CALENDAR_TIMEZONE, CALENDAR_MOCK_NOW, CALENDAR_ALLOWED_ORIGINS.');
+ // Exact event titles to leave out of the display (e.g. rokuyo entries). The sync cache keeps them.
+ const hiddenTitles = (env.CALENDAR_HIDDEN_TITLES ?? '').split(',').map(v => v.trim()).filter(Boolean);
+ const result = schema.safeParse({mode:env.CALENDAR_MODE ?? 'mock',timezone:env.CALENDAR_TIMEZONE ?? 'Asia/Tokyo',clock:env.CALENDAR_MOCK_NOW || undefined,stateDir:resolve(env.CALENDAR_STATE_DIR ?? '.local/dev'),port,allowedOrigins:origins,hiddenTitles});
+ if (!result.success) throw new Error('Invalid calendar configuration: check CALENDAR_MODE (mock|google), CALENDAR_TIMEZONE, CALENDAR_MOCK_NOW, CALENDAR_ALLOWED_ORIGINS, CALENDAR_HIDDEN_TITLES.');
  if (result.data.mode === 'google' && result.data.clock) throw new Error('Invalid calendar configuration: CALENDAR_MOCK_NOW is only for mock mode.');
  return result.data;
 }
