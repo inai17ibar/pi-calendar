@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type TouchEvent } from 'react';
 import { DateTime } from 'luxon';
 import WeekCalendar from './WeekCalendar';
 import { dateInZone, eventPhase, eventsForDay, mergeSnapshots, monthDays, weekDays, withinNavigationLimit, type CalendarEvent, type Snapshot, type SyncState } from '../domain/calendar';
@@ -34,6 +34,8 @@ export default function Calendar({initialNow,fixedClock,timezone,mode='mock'}:{i
  const previousToday = useRef(today);
  const settingsDialog = useRef<HTMLDialogElement>(null);
  const detailDialog = useRef<HTMLDialogElement>(null);
+ // Touch-only swipe origin; mouse dragging in AgendaScroll uses pointer events and is unaffected.
+ const swipeOrigin = useRef<{x:number;y:number}|null>(null);
  useEffect(()=>{
   const frame=requestAnimationFrame(()=>{try { const p=JSON.parse(localStorage.getItem('pi-calendar-preferences') ?? 'null');
    const settings=readPreferences(p);setPrefs(settings);setView(settings.startupView);
@@ -92,6 +94,15 @@ export default function Calendar({initialNow,fixedClock,timezone,mode='mock'}:{i
  const shiftDay=(delta:number)=>DateTime.fromISO(selected).plus({days:delta}).toISODate()!;
  function choose(day:string){if(!inRange(day.slice(0,7)))return;setSelected(day);setFollowingToday(day===today);if(day.slice(0,7)!==month)setMonth(day.slice(0,7));}
  function move(delta:number){const next=DateTime.fromISO(`${month}-01`).plus({months:delta});if(!inRange(next.toFormat('yyyy-MM')))return;setMonth(next.toFormat('yyyy-MM'));setSelected(next.toISODate()!);setFollowingToday(false);}
+ // Passive-friendly swipe detection: never calls preventDefault, so native scrolling keeps working.
+ function beginSwipe(e:TouchEvent){const t=e.touches[0];swipeOrigin.current=e.touches.length===1&&t?{x:t.clientX,y:t.clientY}:null;}
+ function cancelSwipe(){swipeOrigin.current=null;}
+ function swipeDirection(e:TouchEvent){
+  const origin=swipeOrigin.current;swipeOrigin.current=null;const t=e.changedTouches[0];
+  if(!origin||!t)return 0;
+  const dx=t.clientX-origin.x,dy=t.clientY-origin.y;
+  return Math.abs(dx)>64&&Math.abs(dx)>Math.abs(dy)?(dx<0?1:-1):0;
+ }
  function timeLabel(e:CalendarEvent){
   if(e.kind==='allDay')return '終日';
   const start=DateTime.fromISO(e.start).setZone(timezone),end=DateTime.fromISO(e.end).setZone(timezone);
@@ -104,11 +115,11 @@ export default function Calendar({initialNow,fixedClock,timezone,mode='mock'}:{i
    <nav aria-label="表示切替"><button className="refresh-button" disabled={updating} onClick={refresh}>{updating?'更新中…':'予定を更新'}</button><button onClick={goToday}>今日</button><div className="segmented"><button aria-pressed={view==='month'} onClick={()=>setView('month')}>月</button><button aria-pressed={view==='week'} onClick={()=>setView('week')}>週</button><button aria-pressed={view==='day'} onClick={()=>setView('day')}>日</button></div><button aria-label="設定" onClick={()=>setSettings(true)}>⚙ <span className="settings-label">設定</span></button></nav>
   </header>
   {!live&&<div className="demo-note"><span className="demo-badge">DEMO</span> 合成の予定を表示しています。Google Calendarには接続していません。</div>}
-  <div className={`workspace ${view==='day'?'day-view':view==='week'?'week-view':''}`}>
-   {view==='month' && <section className="month-panel" aria-label="月間カレンダー">
+  <div key={view} className={`workspace ${view==='day'?'day-view':view==='week'?'week-view':''}`}>
+   {view==='month' && <section className="month-panel" aria-label="月間カレンダー" onTouchStart={beginSwipe} onTouchCancel={cancelSwipe} onTouchEnd={e=>{const d=swipeDirection(e);if(d)move(d);}}>
     <div className="section-heading"><div><p className="eyebrow">YOUR MONTH</p><h1>{fmt(`${month}-01`,'yyyy年 M月')}</h1></div><div className="month-actions"><button aria-label="前月" disabled={!inRange(shiftMonth(-1))} onClick={()=>move(-1)}>‹</button><button aria-label="翌月" disabled={!inRange(shiftMonth(1))} onClick={()=>move(1)}>›</button></div></div>
     <div className="weekdays">{weekdays.map(d=><span key={d}>{d}</span>)}</div>
-    <div className="month-grid">{days.map(day=>{
+    <div key={month} className="month-grid month-enter">{days.map(day=>{
      const inMonth=day.slice(0,7)===month;
      const items=eventsForDay(events,day,timezone);
      return <button key={day} className={`day-cell ${!inMonth?'outside':''} ${day===selected?'selected':''} ${day===today?'today':''}`} aria-label={`${day}${day===today?' 今日':''} ${inMonth&&complete?items.length+'件':'未取得'}`} aria-pressed={day===selected} onClick={()=>choose(day)}>
@@ -119,10 +130,10 @@ export default function Calendar({initialNow,fixedClock,timezone,mode='mock'}:{i
     <div className="calendar-legend">{live?(current?.calendars??[]).map(c=><span key={c.id}><i style={{background:c.color}}/>{c.name}{!c.fetched&&'（未取得）'}</span>):<><span><i style={{background:'#d87550'}}/>プライベート</span><span><i style={{background:'#688e7b'}}/>家族</span><span>すべてサンプル</span></>}</div>
    </section>}
    {view==='week'&&<WeekCalendar days={week} today={today} selected={selected} events={events} complete={complete} timezone={timezone} now={now} onChoose={choose} onDetail={setDetail} onMove={delta=>choose(DateTime.fromISO(selected).plus({days:delta*7}).toISODate()!)}/>}
-   {view!=='week'&&<section className="agenda-panel" aria-label="日別予定">
+   {view!=='week'&&<section className="agenda-panel" aria-label="日別予定" onTouchStart={view==='day'?beginSwipe:undefined} onTouchCancel={view==='day'?cancelSwipe:undefined} onTouchEnd={view==='day'?e=>{const d=swipeDirection(e);if(d)choose(shiftDay(d));}:undefined}>
     <div className="section-heading"><div><p className="eyebrow">{selected===today?'TODAY’S AGENDA':'DAY AGENDA'}</p><h2>{fmt(selected,'M月d日')} <span>{fmt(selected,'ccc')}曜日</span></h2></div><span className="count">{complete?`${agenda.length}件`:'未取得'}</span></div>
     {view==='day'&&<div className="day-navigation"><button aria-label="前日" disabled={!inRange(shiftDay(-1).slice(0,7))} onClick={()=>choose(shiftDay(-1))}>‹ 前日</button><button aria-label="翌日" disabled={!inRange(shiftDay(1).slice(0,7))} onClick={()=>choose(shiftDay(1))}>翌日 ›</button></div>}
-    <AgendaScroll>
+    <AgendaScroll key={selected}>
      {!complete&&<div className="empty-state"><span>◌</span><h3>{snapshot?'この日の予定は未取得です':'予定を読み込んでいます'}</h3><p>取得できていない日を、予定ゼロとは表示しません。</p>{networkError&&<button disabled={updating} onClick={refresh}>再接続</button>}</div>}
      {complete&&agenda.length===0&&<div className="empty-state"><span>☀</span><h3>予定はありません</h3><p>余白のある一日を。</p></div>}
      {agenda.map(e=>{const phase=eventPhase(e,clock);return <button className={`event-card ${phase==='ended'?'ended':''}`} key={`${e.calendarId}:${e.id}`} onClick={()=>setDetail(e)} style={{borderLeftColor:e.color}}>
